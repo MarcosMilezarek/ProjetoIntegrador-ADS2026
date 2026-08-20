@@ -1,4 +1,8 @@
-# Projeto Integrador — Seleção e Recrutamento (RH)
+# ProjetoIntegrador-ADS2026
+
+## Sobre
+
+Projeto Integrador — Seleção e Recrutamento (RH)
 
 ## Estrutura
 
