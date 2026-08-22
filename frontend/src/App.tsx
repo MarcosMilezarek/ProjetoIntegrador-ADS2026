@@ -1,122 +1,166 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import { Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ClipboardList, FileText, Filter, LayoutDashboard, LogOut, Mail, MapPin, Menu, MoreHorizontal, Pencil, Plus, Search, Settings, ShieldCheck, Sparkles, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { portalService } from '@/services/portal-service';
+import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, Job, NewJobInput, NotificationItem, UserRole } from '@/types/domain';
+
+type CandidateView = 'jobs' | 'resume' | 'applications' | 'documents' | 'detail' | 'success';
+type HrView = 'jobs' | 'candidates' | 'documents';
+type AppMode = 'login' | 'candidate' | 'hr';
+
+const appStatus: Record<ApplicationStatus, string> = { applied: 'Inscrito', reviewing: 'Em análise', interview: 'Entrevista', approved: 'Aprovado', rejected: 'Não selecionado' };
+const documentStatus = { pending: 'Pendente', reviewing: 'Em análise', approved: 'Aprovado', rejected: 'Necessita ajuste' } as const;
+const jobStatus = { open: 'Aberta', closing: 'Fechando', closed: 'Encerrada' } as const;
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+  const [mode, setMode] = useState<AppMode>('login');
+  const [candidateView, setCandidateView] = useState<CandidateView>('jobs');
+  const [hrView, setHrView] = useState<HrView>('jobs');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [documents, setDocuments] = useState<CandidateDocument[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState('job-java');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const [nextJobs, nextProfile, nextApplications, nextDocuments, nextNotifications] = await Promise.all([portalService.getJobs(), portalService.getProfile(), portalService.getApplications(), portalService.getDocuments(), portalService.getNotifications()]);
+      setJobs(nextJobs); setProfile(nextProfile); setApplications(nextApplications); setDocuments(nextDocuments); setNotifications(nextNotifications);
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Não foi possível carregar os dados.'); } finally { setLoading(false); }
+  };
+  useEffect(() => { void refresh(); }, []);
+  const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
+  const navigateCandidate = (view: CandidateView) => { setMode('candidate'); setCandidateView(view); };
+  const navigateHr = (view: HrView) => { setMode('hr'); setHrView(view); };
+  if (loading || !profile) return <div className="loading-screen"><Brand label="Vagas+" /><p>Carregando portal...</p></div>;
+  return <TooltipProvider>
+    {notice && <div className="global-notice"><Alert><ShieldCheck /><AlertTitle>Atualização</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert><Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button></div>}
+    {mode === 'login' && <Login onAccess={(role) => role === 'candidate' ? navigateCandidate('jobs') : navigateHr('jobs')} />}
+    {mode === 'candidate' && <CandidateLayout profile={profile} active={candidateView} onNavigate={navigateCandidate} onExit={() => setMode('login')} notifications={notifications} onReadNotifications={async () => { await portalService.markNotificationsRead(); await refresh(); }}>
+      {candidateView === 'jobs' && <JobsPage jobs={jobs} applications={applications} onOpen={(id) => { setSelectedJobId(id); navigateCandidate('detail'); }} />}
+      {candidateView === 'detail' && selectedJob && <JobDetail job={selectedJob} profile={profile} applied={applications.some((item) => item.jobId === selectedJob.id)} onBack={() => navigateCandidate('jobs')} onApply={async () => { await portalService.apply(selectedJob.id); await refresh(); navigateCandidate('success'); }} />}
+      {candidateView === 'success' && <SuccessPage onApplications={() => navigateCandidate('applications')} />}
+      {candidateView === 'resume' && <ResumePage profile={profile} onSave={async (next) => { await portalService.updateProfile(next); await refresh(); setNotice('Currículo salvo com sucesso.'); }} />}
+      {candidateView === 'applications' && <ApplicationsPage applications={applications} jobs={jobs} onDocuments={() => navigateCandidate('documents')} />}
+      {candidateView === 'documents' && <DocumentsPage documents={documents} mode="candidate" onUpload={async (id, file) => { await portalService.uploadDocument(id, file); await refresh(); setNotice('Documento enviado para análise.'); }} />}
+    </CandidateLayout>}
+    {mode === 'hr' && <HrLayout active={hrView} onNavigate={navigateHr} onExit={() => setMode('login')}>
+      {hrView === 'jobs' && <HrJobsPage jobs={jobs} onCandidates={(id) => { setSelectedJobId(id); navigateHr('candidates'); }} onSaved={async (input) => { await portalService.saveJob(input); await refresh(); setNotice('Vaga salva com sucesso.'); }} onDeleted={async (id) => { await portalService.deleteJob(id); await refresh(); setNotice('Vaga excluída.'); }} />}
+      {hrView === 'candidates' && selectedJob && <HrCandidatesPage job={selectedJob} onBack={() => navigateHr('jobs')} onUpdate={async (id, status) => { await portalService.updateApplicationStatus(id, status); await refresh(); setNotice('Etapa do candidato atualizada.'); }} />}
+      {hrView === 'documents' && <DocumentsPage documents={documents} mode="hr" onReview={async (id, status) => { await portalService.reviewDocument(id, status); await refresh(); setNotice('Documento revisado.'); }} />}
+    </HrLayout>}
+  </TooltipProvider>;
 }
 
-export default App
+function Login({ onAccess }: { onAccess: (role: UserRole) => void }) {
+  const [role, setRole] = useState<UserRole>('candidate');
+  return <main className="login-screen"><section className="login-hero"><Brand label="Vagas+" light /><div className="hero-copy"><h1>Sua próxima vaga, do jeito que faz sentido acompanhar.</h1><p>Cadastre seu currículo uma vez, candidate-se em poucos cliques e acompanhe todas as etapas do processo.</p></div><div className="hero-stats"><Stat value="18" label="vagas abertas agora" /><Stat value="3" label="etapas até a entrevista" /><Stat value="100%" label="revisão humana" /></div><small>© 2026 Projeto Integrador III- Portal do Candidato</small></section>
+    <section className="login-panel"><p className="eyebrow">Acesso ao sistema</p><h2>Entrar na sua conta</h2><p className="muted">Use os dados de demonstração ou escolha o acesso desejado.</p>
+      <Tabs value={role} onValueChange={(value) => setRole(value as UserRole)}><TabsList className="login-tabs"><TabsTrigger value="candidate">Candidato</TabsTrigger><TabsTrigger value="hr">RH</TabsTrigger></TabsList></Tabs>
+      <Field label="E-mail"><Input defaultValue={role === 'candidate' ? 'marina.souza@email.com' : 'camila.torres@email.com'} type="email" /></Field><Field label="Senha"><Input defaultValue="senha123" type="password" /></Field>
+      <div className="login-options"><label className="check-label"><Checkbox defaultChecked /> Manter conectado</label><Button variant="link" size="sm">Esqueci minha senha</Button></div><Button className="brand-primary full" size="lg" onClick={() => onAccess(role)}>Entrar como {role === 'candidate' ? 'candidato' : 'RH'}</Button><Separator className="my-6" /><p className="center muted">Ainda não tem conta? <Button variant="link" className="inline-link">Criar cadastro</Button></p>
+    </section></main>;
+}
+
+function CandidateLayout({ active, children, onNavigate, onExit, profile, notifications, onReadNotifications }: { active: CandidateView; children: ReactNode; onNavigate: (view: CandidateView) => void; onExit: () => void; profile: CandidateProfile; notifications: NotificationItem[]; onReadNotifications: () => void }) {
+  const nav = <nav className="topnav" aria-label="Navegação do candidato"><Button variant={active === 'jobs' || active === 'detail' || active === 'success' ? 'secondary' : 'ghost'} onClick={() => onNavigate('jobs')}>Vagas</Button><Button variant={active === 'resume' ? 'secondary' : 'ghost'} onClick={() => onNavigate('resume')}>Meu currículo</Button><Button variant={active === 'applications' || active === 'documents' ? 'secondary' : 'ghost'} onClick={() => onNavigate('applications')}>Minhas candidaturas</Button></nav>;
+  return <div className="app-shell"><header className="topbar"><Brand label="Vagas+" /><div className="desktop-nav">{nav}</div><div className="header-actions"><Notifications items={notifications} onOpen={onReadNotifications} /><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="profile-trigger"><span><strong>{firstName(profile.name)}</strong><small>Candidata</small></span><Avatar><AvatarFallback className="avatar-gold">MS</AvatarFallback></Avatar></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onNavigate('resume')}><UserRound />Meu perfil</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={onExit}><LogOut />Sair</DropdownMenuItem></DropdownMenuContent></DropdownMenu><Sheet><SheetTrigger asChild><Button variant="ghost" size="icon" className="mobile-menu"><Menu /></Button></SheetTrigger><SheetContent side="right"><div className="sheet-nav"><Brand label="Vagas+" />{nav}</div></SheetContent></Sheet></div></header>{children}</div>;
+}
+
+function HrLayout({ active, children, onNavigate, onExit }: { active: HrView; children: ReactNode; onNavigate: (view: HrView) => void; onExit: () => void }) {
+  return <div className="hr-shell"><aside className="sidebar"><Brand label="Vagas+ RH" light /><p className="sidebar-group">Recrutamento</p><Button variant="ghost" className={active === 'jobs' ? 'side-active' : ''} onClick={() => onNavigate('jobs')}><BriefcaseBusiness />Vagas</Button><Button variant="ghost" className={active === 'candidates' ? 'side-active' : ''} onClick={() => onNavigate('candidates')}><UsersRound />Candidatos</Button><Button variant="ghost" className={active === 'documents' ? 'side-active' : ''} onClick={() => onNavigate('documents')}><FileText />Documentos</Button><p className="sidebar-group">Sistema</p><Button variant="ghost"><Settings />Configurações</Button><Button variant="ghost" className="sidebar-user" onClick={onExit}><Avatar><AvatarFallback>RH</AvatarFallback></Avatar><span><strong>Camila Torres</strong><small>Recursos Humanos</small></span><LogOut className="logout-icon" /></Button></aside><main className="hr-main">{children}</main></div>;
+}
+
+function Notifications({ items, onOpen }: { items: NotificationItem[]; onOpen: () => void }) {
+  const unread = items.filter((item) => !item.read).length;
+  return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="notification-button" aria-label="Notificações"><Bell />{unread > 0 && <span>{unread}</span>}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="notification-menu"><div className="menu-title">Notificações</div><DropdownMenuSeparator />{items.map((item) => <DropdownMenuItem key={item.id} className="notification-item" onClick={onOpen}><strong>{item.title}</strong><small>{item.description}</small></DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>;
+}
+
+function JobsPage({ jobs, applications, onOpen }: { jobs: Job[]; applications: Application[]; onOpen: (id: string) => void }) {
+  const [query, setQuery] = useState(''); const [area, setArea] = useState('all'); const [model, setModel] = useState('all');
+  const filtered = useMemo(() => jobs.filter((job) => job.status !== 'closed' && (area === 'all' || job.department === area) && (model === 'all' || job.workModel === model) && `${job.title} ${job.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase())), [jobs, query, area, model]);
+  return <main className="page narrow"><PageTitle eyebrow="Portal do candidato" title="Vagas abertas" subtitle={`${filtered.length} oportunidades disponíveis na Vagas+ agora.`} /><div className="filters"><div className="input-icon"><Search /><Input placeholder="Buscar por cargo, palavra-chave..." value={query} onChange={(event) => setQuery(event.target.value)} /></div><Select value={area} onValueChange={setArea}><SelectTrigger><SelectValue placeholder="Todas as áreas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as áreas</SelectItem>{[...new Set(jobs.map((job) => job.department))].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Select value={model} onValueChange={setModel}><SelectTrigger><SelectValue placeholder="Modalidade" /></SelectTrigger><SelectContent><SelectItem value="all">Modalidade</SelectItem><SelectItem value="Presencial">Presencial</SelectItem><SelectItem value="Híbrido">Híbrido</SelectItem><SelectItem value="Remoto">Remoto</SelectItem></SelectContent></Select><Button variant="outline"><Filter />Mais recentes</Button></div><div className="job-stack">{filtered.map((job) => <Card className="job-card" key={job.id}><CardContent><div><h3>{job.title}</h3><MetaLine job={job} /><TagList tags={job.tags} /></div><div className="card-action"><small>{applications.some((item) => item.jobId === job.id) ? 'Você já se candidatou' : `Encerra em ${job.closesAt}`}</small><Button className="brand-primary" onClick={() => onOpen(job.id)}>Ver vaga</Button></div></CardContent></Card>)}{filtered.length === 0 && <EmptyState title="Nenhuma vaga encontrada" description="Ajuste os filtros para ver outras oportunidades." />}</div></main>;
+}
+
+function JobDetail({ job, profile, applied, onBack, onApply }: { job: Job; profile: CandidateProfile; applied: boolean; onBack: () => void; onApply: () => void }) {
+  return <main className="page detail-grid"><Button variant="link" className="back-button" onClick={onBack}><ChevronLeft />Voltar para vagas</Button><section><p className="breadcrumb">Vagas › {job.department}</p><h1>{job.title}</h1><MetaLine job={job} /><Card className="content-card"><CardContent><h3>Sobre a vaga</h3><p>{job.description}</p><h3>Requisitos</h3><ul>{job.requirements.map((item) => <li key={item}>{item}</li>)}</ul><h3>Benefícios</h3><TagList tags={job.benefits} /></CardContent></Card></section><Card className="apply-card"><CardHeader><CardTitle>Sua candidatura usará</CardTitle></CardHeader><CardContent><div className="mini-table"><span>Currículo</span><strong>{profile.name}</strong><span>Perfil completo</span><strong>{profile.completion}%</strong><span>Última atualização</span><strong>02/08/2026</strong></div><p>O RH terá acesso ao seu currículo completo e poderá solicitar documentos adicionais após a aprovação.</p><Button className="brand-primary full" disabled={applied} onClick={onApply}>{applied ? 'Candidatura enviada' : 'Confirmar candidatura'}</Button><Button variant="ghost" className="full" onClick={onBack}>Cancelar</Button></CardContent></Card></main>;
+}
+
+function SuccessPage({ onApplications }: { onApplications: () => void }) { return <main className="page centered"><div className="success-mark"><Check size={34} /></div><h1>Candidatura enviada com sucesso!</h1><p>O RH será notificado e você poderá acompanhar todas as atualizações por aqui.</p><Card className="status-card"><CardHeader><CardTitle>Status atual</CardTitle><CardDescription>Você será notificado por e-mail a cada atualização.</CardDescription></CardHeader><CardContent><ProgressSteps current={1} /><h3>Próximos passos</h3><ol className="next-steps"><li>O RH revisará seu currículo com apoio de triagem assistida.</li><li>Se avançar, você poderá ser chamado(a) para entrevista.</li><li>Em caso de aprovação, receberá um pedido de documentos.</li></ol></CardContent></Card><Button className="brand-primary" onClick={onApplications}>Ver minhas candidaturas</Button></main>; }
+
+function ResumePage({ profile, onSave }: { profile: CandidateProfile; onSave: (profile: CandidateProfile) => void }) {
+  const [form, setForm] = useState(profile); const update = (key: keyof CandidateProfile, value: string | string[]) => setForm((current) => ({ ...current, [key]: value }));
+  return <main className="page two-col"><section><PageTitle eyebrow="Portal do candidato" title="Meu currículo" subtitle="Essas informações serão usadas em todas as suas candidaturas." /><Button className="brand-primary save" onClick={() => onSave(form)}>Salvar alterações</Button><Card className="content-card"><CardHeader><CardTitle>Dados pessoais</CardTitle><CardDescription>Usados para contato durante o processo seletivo.</CardDescription></CardHeader><CardContent className="field-grid"><Field label="Nome completo"><Input value={form.name} onChange={(event) => update('name', event.target.value)} /></Field><Field label="E-mail"><Input value={form.email} onChange={(event) => update('email', event.target.value)} /></Field><Field label="Telefone"><Input value={form.phone} onChange={(event) => update('phone', event.target.value)} /></Field><Field label="Cidade / UF"><Input value={form.city} onChange={(event) => update('city', event.target.value)} /></Field></CardContent></Card><Card className="content-card"><CardHeader><CardTitle>Formação acadêmica</CardTitle></CardHeader><CardContent><Textarea value={form.education} onChange={(event) => update('education', event.target.value)} /><Button variant="link" className="add-link"><Plus />Adicionar formação</Button></CardContent></Card><Card className="content-card"><CardHeader><CardTitle>Experiências e competências</CardTitle></CardHeader><CardContent><Textarea value={form.experience} onChange={(event) => update('experience', event.target.value)} /><Field label="Competências (separadas por vírgula)"><Input value={form.skills.join(', ')} onChange={(event) => update('skills', event.target.value.split(',').map((item) => item.trim()).filter(Boolean))} /></Field><TagList tags={form.skills} /></CardContent></Card></section><Card className="profile-card"><CardHeader><CardTitle>Perfil completo</CardTitle></CardHeader><CardContent><div className="completion"><Progress value={form.completion} /><strong>{form.completion}%</strong></div><p>Complete seu perfil para aumentar suas chances nas triagens.</p>{['Dados pessoais', 'Formação acadêmica', 'Experiências', 'Competências'].map((item) => <span className="check-row" key={item}><Check />{item}</span>)}<span className="check-row pending"><ClipboardList />Idiomas</span></CardContent></Card></main>;
+}
+
+function ApplicationsPage({ applications, jobs, onDocuments }: { applications: Application[]; jobs: Job[]; onDocuments: () => void }) { return <main className="page narrow"><PageTitle eyebrow="Portal do candidato" title="Minhas candidaturas" subtitle={`${applications.length} candidaturas ativas: acompanhe o andamento de cada uma.`} /><div className="job-stack">{applications.map((app) => { const job = jobs.find((item) => item.id === app.jobId); if (!job) return null; return <Card className="application-card" key={app.id}><CardContent><div className="application-head"><div><h3>{job.title}</h3><p>Candidatura em {app.submittedAt} · {job.department}</p></div><StatusBadge status={app.status} /></div><ProgressSteps current={stepFor(app.status)} compact />{app.status === 'approved' && <Button className="accent" onClick={onDocuments}>Enviar documentação pendente</Button>}</CardContent></Card>; })}{applications.length === 0 && <EmptyState title="Você ainda não possui candidaturas" description="Explore as vagas abertas e encontre uma oportunidade para você." />}</div></main>; }
+
+function DocumentsPage({ documents, mode, onUpload, onReview }: { documents: CandidateDocument[]; mode: 'candidate' | 'hr'; onUpload?: (id: string, file: File) => void; onReview?: (id: string, status: 'approved' | 'rejected') => void }) {
+  const completed = documents.filter((doc) => doc.status !== 'pending').length;
+  return <main className={mode === 'candidate' ? 'page narrow' : 'hr-page'}><PageTitle eyebrow={mode === 'candidate' ? 'Analista de Recursos Humanos › Aprovado' : undefined} title={mode === 'candidate' ? 'Envio de documentação' : 'Documentos de contratação'} subtitle={mode === 'candidate' ? 'Envie os documentos solicitados para dar sequência à contratação.' : 'Revise os documentos enviados pelos candidatos.'} /><Alert className="document-alert"><ShieldCheck /><AlertTitle>{completed} de {documents.length} documentos enviados</AlertTitle><AlertDescription>{mode === 'candidate' ? 'Envie os itens pendentes para não atrasar sua admissão.' : 'A análise dos documentos permanece registrada para auditoria.'}</AlertDescription></Alert><div className="progress-label"><Progress value={(completed / documents.length) * 100} /><strong>{completed}/{documents.length}</strong></div><Card className="document-list"><CardContent>{documents.map((doc) => <DocumentRow key={doc.id} document={doc} mode={mode} onUpload={onUpload} onReview={onReview} />)}</CardContent></Card></main>;
+}
+
+function DocumentRow({ document, mode, onUpload, onReview }: { document: CandidateDocument; mode: 'candidate' | 'hr'; onUpload?: (id: string, file: File) => void; onReview?: (id: string, status: 'approved' | 'rejected') => void }) {
+  const change = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) onUpload?.(document.id, file); };
+  return <div className="document-row"><span className={`doc-icon ${document.status === 'pending' ? 'pending' : ''}`}><FileText /></span><div><strong>{document.label}</strong><small>{document.filename ?? 'PDF ou DOCX, até 5 MB'}{document.updatedAt ? ` · atualizado em ${document.updatedAt}` : ''}</small></div><DocumentBadge status={document.status} />{mode === 'candidate' && document.status === 'pending' && <Button asChild className="brand-primary"><label><Upload />Enviar arquivo<input type="file" accept=".pdf,.doc,.docx" hidden onChange={change} /></label></Button>}{mode === 'candidate' && document.status !== 'pending' && <Button variant="outline">Ver</Button>}{mode === 'hr' && document.status === 'reviewing' && <div className="document-actions"><Button variant="outline" onClick={() => onReview?.(document.id, 'rejected')}>Rejeitar</Button><Button className="brand-primary" onClick={() => onReview?.(document.id, 'approved')}>Aprovar</Button></div>}{mode === 'hr' && document.status === 'pending' && <Button variant="outline">Enviar lembrete</Button>}{mode === 'hr' && document.status === 'approved' && <Button variant="outline">Baixar</Button>}</div>;
+}
+
+function HrJobsPage({ jobs, onCandidates, onSaved, onDeleted }: { jobs: Job[]; onCandidates: (id: string) => void; onSaved: (input: NewJobInput & { id?: string }) => void; onDeleted: (id: string) => void }) {
+  const [tab, setTab] = useState('open'); const [query, setQuery] = useState(''); const [editor, setEditor] = useState<Job | null | undefined>(undefined);
+  const filtered = jobs.filter((job) => (tab === 'all' || job.status === tab) && job.title.toLowerCase().includes(query.toLowerCase()));
+  return <section className="hr-page"><PageTitle title="Gerenciamento de vagas" subtitle={`${jobs.filter((job) => job.status === 'open').length} vagas abertas · ${jobs.filter((job) => job.status === 'closed').length} encerradas`} /><div className="hr-actions"><Tabs value={tab} onValueChange={setTab}><TabsList><TabsTrigger value="open">Abertas</TabsTrigger><TabsTrigger value="closed">Encerradas</TabsTrigger><TabsTrigger value="all">Todas</TabsTrigger></TabsList></Tabs><Button className="brand-primary" onClick={() => setEditor(null)}><Plus />Nova vaga</Button></div><div className="input-icon hr-search"><Search /><Input placeholder="Buscar vaga..." value={query} onChange={(event) => setQuery(event.target.value)} /></div><Card className="table-card"><Table><TableHeader><TableRow><TableHead>Vaga</TableHead><TableHead>Departamento</TableHead><TableHead>Publicada em</TableHead><TableHead>Candidatos</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader><TableBody>{filtered.map((job) => <TableRow key={job.id}><TableCell><strong>{job.title}</strong><small>{job.workModel} · {job.contract}</small></TableCell><TableCell>{job.department}</TableCell><TableCell>{job.publishedAt}</TableCell><TableCell><strong>{job.applicants}</strong> inscritos</TableCell><TableCell><JobBadge status={job.status} /></TableCell><TableCell><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => onCandidates(job.id)}><UsersRound />Ver candidatos</DropdownMenuItem><DropdownMenuItem onClick={() => setEditor(job)}><Pencil />Editar vaga</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => onDeleted(job.id)}><Trash2 />Excluir vaga</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>)}</TableBody></Table></Card>{editor !== undefined && <JobDialog job={editor ?? undefined} onClose={() => setEditor(undefined)} onSave={onSaved} />}</section>;
+}
+
+function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; onSave: (input: NewJobInput & { id?: string }) => void }) {
+  const [form, setForm] = useState({ title: job?.title ?? '', department: job?.department ?? 'Tecnologia', city: job?.city ?? 'Erechim, RS', workModel: job?.workModel ?? 'Híbrido', contract: job?.contract ?? 'CLT', closesAt: job?.closesAt ?? '30/09/2026', tags: job?.tags.join(', ') ?? '', description: job?.description ?? '', requirements: job?.requirements.join('\n') ?? '', benefits: job?.benefits.join(', ') ?? '' });
+  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = (event: FormEvent) => { event.preventDefault(); onSave({ id: job?.id, title: form.title, department: form.department, city: form.city, workModel: form.workModel as Job['workModel'], contract: form.contract as Job['contract'], closesAt: form.closesAt, tags: commaList(form.tags), description: form.description, requirements: lineList(form.requirements), benefits: commaList(form.benefits) }); onClose(); };
+  return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog"><DialogHeader><DialogTitle>{job ? 'Editar vaga' : 'Nova vaga'}</DialogTitle><DialogDescription>As informações ficarão prontas para publicação no portal.</DialogDescription></DialogHeader><form onSubmit={submit} className="dialog-form"><Field label="Título da vaga"><Input required value={form.title} onChange={(event) => update('title', event.target.value)} /></Field><div className="field-grid"><Field label="Departamento"><Input required value={form.department} onChange={(event) => update('department', event.target.value)} /></Field><Field label="Cidade"><Input required value={form.city} onChange={(event) => update('city', event.target.value)} /></Field><Field label="Modalidade"><Select value={form.workModel} onValueChange={(value) => update('workModel', value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Presencial">Presencial</SelectItem><SelectItem value="Híbrido">Híbrido</SelectItem><SelectItem value="Remoto">Remoto</SelectItem></SelectContent></Select></Field><Field label="Contrato"><Select value={form.contract} onValueChange={(value) => update('contract', value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CLT">CLT</SelectItem><SelectItem value="Estágio">Estágio</SelectItem><SelectItem value="PJ">PJ</SelectItem></SelectContent></Select></Field></div><Field label="Encerramento"><Input required value={form.closesAt} onChange={(event) => update('closesAt', event.target.value)} /></Field><Field label="Tecnologias / palavras-chave"><Input value={form.tags} onChange={(event) => update('tags', event.target.value)} placeholder="Java, Spring Boot, SQL" /></Field><Field label="Descrição"><Textarea required value={form.description} onChange={(event) => update('description', event.target.value)} /></Field><Field label="Requisitos (um por linha)"><Textarea required value={form.requirements} onChange={(event) => update('requirements', event.target.value)} /></Field><Field label="Benefícios"><Input value={form.benefits} onChange={(event) => update('benefits', event.target.value)} /></Field><DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" className="brand-primary">Salvar vaga</Button></DialogFooter></form></DialogContent></Dialog>;
+}
+
+function HrCandidatesPage({ job, onBack, onUpdate }: { job: Job; onBack: () => void; onUpdate: (id: string, status: ApplicationStatus) => void }) {
+  const [candidates, setCandidates] = useState<Candidate[]>([]); const [query, setQuery] = useState(''); const [status, setStatus] = useState('all');
+  useEffect(() => { void portalService.getCandidates(job.id).then(setCandidates); }, [job.id]);
+  const filtered = candidates.filter((candidate) => candidate.name.toLowerCase().includes(query.toLowerCase()) && (status === 'all' || candidate.status === status));
+  return <section className="hr-page"><p className="breadcrumb">Vagas › {job.title}</p><div className="split-title"><PageTitle title="Candidatos inscritos" subtitle={`${candidates.length} candidatos · vaga aberta desde ${job.publishedAt}`} /><Button variant="outline" onClick={onBack}><ChevronLeft />Voltar para vagas</Button></div><div className="ia-banner"><div className="spark"><Sparkles /></div><div><strong>Triagem assistida por IA</strong><span>O percentual indica aderência técnica e não substitui a decisão humana.</span></div><Badge>Revisão humana ativa</Badge></div><div className="candidate-filters"><div className="input-icon"><Search /><Input placeholder="Buscar candidato..." value={query} onChange={(event) => setQuery(event.target.value)} /></div><Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as etapas</SelectItem><SelectItem value="applied">Inscrito</SelectItem><SelectItem value="reviewing">Em análise</SelectItem><SelectItem value="interview">Entrevista</SelectItem><SelectItem value="approved">Aprovado</SelectItem></SelectContent></Select></div><Card className="table-card"><Table><TableHeader><TableRow><TableHead>Candidato</TableHead><TableHead>Candidatura</TableHead><TableHead>Aderência</TableHead><TableHead>Etapa</TableHead><TableHead /></TableRow></TableHeader><TableBody>{filtered.map((candidate) => <TableRow key={candidate.applicationId}><TableCell><div className="candidate-cell"><Avatar><AvatarFallback className="avatar-mint">{initials(candidate.name)}</AvatarFallback></Avatar><span><strong>{candidate.name}</strong><small>{candidate.email}</small></span></div></TableCell><TableCell>{candidate.submittedAt}</TableCell><TableCell><div className="match-bar"><Progress value={candidate.match} /><strong>{candidate.match}%</strong></div></TableCell><TableCell><StatusBadge status={candidate.status} /></TableCell><TableCell><CandidateMenu candidate={candidate} onUpdate={onUpdate} /></TableCell></TableRow>)}</TableBody></Table></Card></section>;
+}
+
+function CandidateMenu({ candidate, onUpdate }: { candidate: Candidate; onUpdate: (id: string, status: ApplicationStatus) => void }) { const isSample = candidate.applicationId.startsWith('sample-'); return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={isSample} onClick={() => onUpdate(candidate.applicationId, 'interview')}>Agendar entrevista</DropdownMenuItem><DropdownMenuItem disabled={isSample} onClick={() => onUpdate(candidate.applicationId, 'approved')}>Aprovar candidato</DropdownMenuItem><DropdownMenuItem disabled={isSample} variant="destructive" onClick={() => onUpdate(candidate.applicationId, 'rejected')}>Encerrar candidatura</DropdownMenuItem>{isSample && <DropdownMenuItem disabled>Dados demonstrativos</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>; }
+function Brand({ label, light = false }: { label: string; light?: boolean }) { return <div className={`brand ${light ? 'light' : ''}`}><span>V+</span><div><strong>{label}</strong><small>Projeto Integrador III</small></div></div>; }
+function PageTitle({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) { return <div className="page-title">{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>; }
+function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }
+function MetaLine({ job }: { job: Job }) { return <p className="meta-line"><span><MapPin />{job.city}</span><span><BriefcaseBusiness />{job.workModel} · {job.contract}</span><span><CalendarDays />Publicada em {job.publishedAt}</span></p>; }
+function TagList({ tags }: { tags: string[] }) { return <div className="tags">{tags.map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div>; }
+function JobBadge({ status }: { status: Job['status'] }) { return <Badge className={`badge ${status}`}>{jobStatus[status]}</Badge>; }
+function StatusBadge({ status }: { status: ApplicationStatus }) { return <Badge className={`badge ${status}`}>{appStatus[status]}</Badge>; }
+function DocumentBadge({ status }: { status: CandidateDocument['status'] }) { return <Badge className={`badge ${status}`}>{documentStatus[status]}</Badge>; }
+function ProgressSteps({ current, compact = false }: { current: number; compact?: boolean }) { const steps = ['Inscrito', 'Em análise', 'Entrevista', 'Aprovado']; return <div className={`steps ${compact ? 'compact' : ''}`}>{steps.map((step, index) => <div className={index + 1 <= current ? 'done' : ''} key={step}><span>{index + 1 < current ? <Check /> : index + 1}</span><small>{step}</small></div>)}</div>; }
+function EmptyState({ title, description }: { title: string; description: string }) { return <Card className="empty-state"><CardContent><LayoutDashboard /><h3>{title}</h3><p>{description}</p></CardContent></Card>; }
+function Stat({ value, label }: { value: string; label: string }) { return <div><strong>{value}</strong><span>{label}</span></div>; }
+function stepFor(status: ApplicationStatus) { return ({ applied: 1, reviewing: 2, interview: 3, approved: 4, rejected: 2 })[status]; }
+function initials(name: string) { return name.split(' ').slice(0, 2).map((item) => item[0]).join(''); }
+function firstName(name: string) { return name.split(' ')[0]; }
+function commaList(value: string) { return value.split(',').map((item) => item.trim()).filter(Boolean); }
+function lineList(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+
+export default App;
