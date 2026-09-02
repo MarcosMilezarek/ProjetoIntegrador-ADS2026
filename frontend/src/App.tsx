@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
-import { Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ClipboardList, FileText, Filter, LayoutDashboard, LogOut, Mail, MapPin, Menu, MoreHorizontal, Pencil, Plus, Search, Settings, ShieldCheck, Sparkles, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ClipboardList, FileText, Filter, LayoutDashboard, LogOut, MapPin, Menu, MoreHorizontal, Pencil, Plus, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +20,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { portalService } from '@/services/portal-service';
 import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, Job, NewJobInput, NotificationItem, UserRole } from '@/types/domain';
+import { authService } from './types/auth-service'; 
 
 type CandidateView = 'jobs' | 'resume' | 'applications' | 'documents' | 'detail' | 'success';
 type HrView = 'jobs' | 'candidates' | 'documents';
-type AppMode = 'login' | 'candidate' | 'hr';
+type AppMode = 'login' | 'signup' | 'candidate' | 'hr';
 
 const appStatus: Record<ApplicationStatus, string> = { applied: 'Inscrito', reviewing: 'Em análise', interview: 'Entrevista', approved: 'Aprovado', rejected: 'Não selecionado' };
 const documentStatus = { pending: 'Pendente', reviewing: 'Em análise', approved: 'Aprovado', rejected: 'Necessita ajuste' } as const;
@@ -52,10 +53,18 @@ function App() {
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
   const navigateCandidate = (view: CandidateView) => { setMode('candidate'); setCandidateView(view); };
   const navigateHr = (view: HrView) => { setMode('hr'); setHrView(view); };
+  const closeNotice = () => setNotice(null);
+  if (mode === 'login') return <>
+    <GlobalNotice notice={notice} onClose={closeNotice} />
+    <Login onAccess={(role) => role === 'candidate' ? navigateCandidate('jobs') : navigateHr('jobs')} onCreateAccount={() => setMode('signup')} />
+  </>;
+  if (mode === 'signup') return <>
+    <GlobalNotice notice={notice} onClose={closeNotice} />
+    <Signup onBackToLogin={() => setMode('login')} />
+  </>;
   if (loading || !profile) return <div className="loading-screen"><Brand label="Vagas+" /><p>Carregando portal...</p></div>;
   return <TooltipProvider>
-    {notice && <div className="global-notice"><Alert><ShieldCheck /><AlertTitle>Atualização</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert><Button variant="ghost" size="sm" onClick={() => setNotice(null)}>Fechar</Button></div>}
-    {mode === 'login' && <Login onAccess={(role) => role === 'candidate' ? navigateCandidate('jobs') : navigateHr('jobs')} />}
+    <GlobalNotice notice={notice} onClose={closeNotice} />
     {mode === 'candidate' && <CandidateLayout profile={profile} active={candidateView} onNavigate={navigateCandidate} onExit={() => setMode('login')} notifications={notifications} onReadNotifications={async () => { await portalService.markNotificationsRead(); await refresh(); }}>
       {candidateView === 'jobs' && <JobsPage jobs={jobs} applications={applications} onOpen={(id) => { setSelectedJobId(id); navigateCandidate('detail'); }} />}
       {candidateView === 'detail' && selectedJob && <JobDetail job={selectedJob} profile={profile} applied={applications.some((item) => item.jobId === selectedJob.id)} onBack={() => navigateCandidate('jobs')} onApply={async () => { await portalService.apply(selectedJob.id); await refresh(); navigateCandidate('success'); }} />}
@@ -72,14 +81,95 @@ function App() {
   </TooltipProvider>;
 }
 
+function GlobalNotice({ notice, onClose }: { notice: string | null; onClose: () => void }) {
+  if (!notice) return null;
+  return <div className="global-notice"><Alert><ShieldCheck /><AlertTitle>Atualização</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert><Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button></div>;
+}
+
 function Login({ onAccess }: { onAccess: (role: UserRole) => void }) {
   const [role, setRole] = useState<UserRole>('candidate');
+  const [email, setEmail] = useState('marina.souza@email.com');
+  const [senha, setSenha] = useState('senha123');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const changeRole = (value: string) => { setRole(value as UserRole); setEmail(value === 'candidate' ? 'marina.souza@email.com' : 'camila.torres@email.com'); setSenha('senha123'); setError(null); };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setError(null); setSubmitting(true);
+    try {
+      const account = await authService.login({ email, senha });
+      if (account.perfil === 'candidato') onAccess('candidate');
+      else if (account.perfil === 'rh') onAccess('hr');
+      else setError('Área administrativa ainda não disponível neste portal.');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível entrar. Tente novamente.'); }
+    finally { setSubmitting(false); }
+  };
   return <main className="login-screen"><section className="login-hero"><Brand label="Vagas+" light /><div className="hero-copy"><h1>Sua próxima vaga, do jeito que faz sentido acompanhar.</h1><p>Cadastre seu currículo uma vez, candidate-se em poucos cliques e acompanhe todas as etapas do processo.</p></div><div className="hero-stats"><Stat value="18" label="vagas abertas agora" /><Stat value="3" label="etapas até a entrevista" /><Stat value="100%" label="revisão humana" /></div><small>© 2026 Projeto Integrador III- Portal do Candidato</small></section>
     <section className="login-panel"><p className="eyebrow">Acesso ao sistema</p><h2>Entrar na sua conta</h2><p className="muted">Use os dados de demonstração ou escolha o acesso desejado.</p>
-      <Tabs value={role} onValueChange={(value) => setRole(value as UserRole)}><TabsList className="login-tabs"><TabsTrigger value="candidate">Candidato</TabsTrigger><TabsTrigger value="hr">RH</TabsTrigger></TabsList></Tabs>
-      <Field label="E-mail"><Input defaultValue={role === 'candidate' ? 'marina.souza@email.com' : 'camila.torres@email.com'} type="email" /></Field><Field label="Senha"><Input defaultValue="senha123" type="password" /></Field>
-      <div className="login-options"><label className="check-label"><Checkbox defaultChecked /> Manter conectado</label><Button variant="link" size="sm">Esqueci minha senha</Button></div><Button className="brand-primary full" size="lg" onClick={() => onAccess(role)}>Entrar como {role === 'candidate' ? 'candidato' : 'RH'}</Button><Separator className="my-6" /><p className="center muted">Ainda não tem conta? <Button variant="link" className="inline-link">Criar cadastro</Button></p>
+      <Tabs value={role} onValueChange={changeRole}><TabsList className="login-tabs"><TabsTrigger value="candidate">Candidato</TabsTrigger><TabsTrigger value="hr">RH</TabsTrigger></TabsList></Tabs>
+      <form onSubmit={submit}>
+        {error && <Alert variant="destructive" className="login-alert"><ShieldCheck /><AlertTitle>Não foi possível entrar</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+        <Field label="E-mail"><Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></Field><Field label="Senha"><Input value={senha} onChange={(event) => setSenha(event.target.value)} type="password" required /></Field>
+        <div className="login-options"><label className="check-label"><Checkbox defaultChecked /> Manter conectado</label><Button type="button" variant="link" size="sm">Esqueci minha senha</Button></div><Button type="submit" className="brand-primary full" size="lg" disabled={submitting}>{submitting ? 'Entrando...' : `Entrar como ${role === 'candidate' ? 'candidato' : 'RH'}`}</Button>
+      </form>
+      <Separator className="my-6" /><p className="center muted">Ainda não tem conta? <Button variant="link" className="inline-link">Criar cadastro</Button></p>
     </section></main>;
+}
+
+function Signup({ onBackToLogin }: { onBackToLogin: () => void }) {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', city: '', password: '', confirmPassword: '' });
+  const [accepted, setAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) { setError('Preencha nome e e-mail para continuar.'); return; }
+    if (form.password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return; }
+    if (form.password !== form.confirmPassword) { setError('As senhas informadas não coincidem.'); return; }
+    if (!accepted) { setError('É necessário aceitar os termos de uso e a política de privacidade.'); return; }
+    setError(null);
+    setSubmitted(true);
+    // TODO: integrar com POST /auth/cadastro quando o backend estiver disponível (RF02).
+  };
+
+  if (submitted) {
+    return <main className="login-screen">
+      <section className="login-hero"><Brand label="Vagas+" light /><div className="hero-copy"><h1>Sua próxima vaga, do jeito que faz sentido acompanhar.</h1><p>Cadastre seu currículo uma vez, candidate-se em poucos cliques e acompanhe todas as etapas do processo.</p></div><div className="hero-stats"><Stat value="18" label="vagas abertas agora" /><Stat value="3" label="etapas até a entrevista" /><Stat value="100%" label="revisão humana" /></div><small>© 2026 Projeto Integrador III - Portal do Candidato</small></section>
+      <section className="login-panel centered">
+        <div className="success-mark"><Check size={34} /></div>
+        <h2>Cadastro realizado com sucesso!</h2>
+        <p className="muted">Use seu e-mail e senha para acessar o portal e continuar completando seu currículo.</p>
+        <Button className="brand-primary full" size="lg" onClick={onBackToLogin}>Ir para o login</Button>
+      </section>
+    </main>;
+  }
+
+  return <main className="login-screen">
+    <section className="login-hero"><Brand label="Vagas+" light /><div className="hero-copy"><h1>Crie sua conta e comece a se candidatar.</h1><p>Cadastro gratuito para candidatos: monte seu currículo e acompanhe todas as suas candidaturas em um só lugar.</p></div><div className="hero-stats"><Stat value="18" label="vagas abertas agora" /><Stat value="3" label="etapas até a entrevista" /><Stat value="100%" label="revisão humana" /></div><small>© 2026 Projeto Integrador III - Portal do Candidato</small></section>
+    <section className="login-panel">
+      <p className="eyebrow">Novo por aqui?</p>
+      <h2>Criar cadastro de candidato</h2>
+      <p className="muted">Leva menos de dois minutos. Depois você completa seu currículo com calma.</p>
+      <form onSubmit={submit}>
+        <Field label="Nome completo"><Input required value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="Seu nome completo" /></Field>
+        <Field label="E-mail"><Input required type="email" value={form.email} onChange={(event) => update('email', event.target.value)} placeholder="voce@email.com" /></Field>
+        <div className="field-grid">
+          <Field label="Telefone"><Input value={form.phone} onChange={(event) => update('phone', event.target.value)} placeholder="(00) 00000-0000" /></Field>
+          <Field label="Cidade / UF"><Input value={form.city} onChange={(event) => update('city', event.target.value)} placeholder="Erechim, RS" /></Field>
+        </div>
+        <div className="field-grid">
+          <Field label="Senha"><Input required type="password" value={form.password} onChange={(event) => update('password', event.target.value)} placeholder="Mínimo 8 caracteres" /></Field>
+          <Field label="Confirmar senha"><Input required type="password" value={form.confirmPassword} onChange={(event) => update('confirmPassword', event.target.value)} placeholder="Repita a senha" /></Field>
+        </div>
+        <div className="login-options"><label className="check-label"><Checkbox checked={accepted} onCheckedChange={(value) => setAccepted(value === true)} /> Li e aceito os termos de uso e a política de privacidade (LGPD)</label></div>
+        {error && <Alert variant="destructive" className="document-alert signup-error"><ShieldAlert /><AlertTitle>Não foi possível concluir o cadastro</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+        <Button type="submit" className="brand-primary full" size="lg">Criar minha conta</Button>
+      </form>
+      <Separator className="my-6" />
+      <p className="center muted">Já tem uma conta? <Button variant="link" className="inline-link" onClick={onBackToLogin}>Entrar</Button></p>
+    </section>
+  </main>;
 }
 
 function CandidateLayout({ active, children, onNavigate, onExit, profile, notifications, onReadNotifications }: { active: CandidateView; children: ReactNode; onNavigate: (view: CandidateView) => void; onExit: () => void; profile: CandidateProfile; notifications: NotificationItem[]; onReadNotifications: () => void }) {

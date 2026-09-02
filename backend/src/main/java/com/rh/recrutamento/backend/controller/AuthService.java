@@ -1,5 +1,4 @@
 package com.rh.recrutamento.backend.service;
-
 import com.rh.recrutamento.backend.dto.LoginRequest;
 import com.rh.recrutamento.backend.dto.LoginResponse;
 import com.rh.recrutamento.backend.entity.Usuario;

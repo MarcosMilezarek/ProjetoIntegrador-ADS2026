@@ -63,6 +63,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--backgro
 button, input, textarea, select { font: inherit; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
 
+.login-alert { margin: 4px 0 18px; }
 .loading-screen { min-height: 100vh; display: grid; place-content: center; gap: 14px; background: var(--background); color: var(--muted-foreground); text-align: center; }
 .global-notice { position: fixed; z-index: 100; top: 18px; right: 18px; width: min(430px, calc(100vw - 36px)); display: flex; align-items: start; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
 .global-notice [data-slot="alert"] { border: 0; padding: 10px; }
