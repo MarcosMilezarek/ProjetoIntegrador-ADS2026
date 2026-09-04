@@ -86,13 +86,13 @@ function GlobalNotice({ notice, onClose }: { notice: string | null; onClose: () 
   return <div className="global-notice"><Alert><ShieldCheck /><AlertTitle>Atualização</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert><Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button></div>;
 }
 
-function Login({ onAccess }: { onAccess: (role: UserRole) => void }) {
+function Login({ onAccess, onCreateAccount }: { onAccess: (role: UserRole) => void; onCreateAccount: () => void }) {
   const [role, setRole] = useState<UserRole>('candidate');
-  const [email, setEmail] = useState('marina.souza@email.com');
-  const [senha, setSenha] = useState('senha123');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const changeRole = (value: string) => { setRole(value as UserRole); setEmail(value === 'candidate' ? 'marina.souza@email.com' : 'camila.torres@email.com'); setSenha('senha123'); setError(null); };
+  const changeRole = (value: string) => { setRole(value as UserRole); setError(null); };
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError(null); setSubmitting(true);
     try {
@@ -104,14 +104,14 @@ function Login({ onAccess }: { onAccess: (role: UserRole) => void }) {
     finally { setSubmitting(false); }
   };
   return <main className="login-screen"><section className="login-hero"><Brand label="Vagas+" light /><div className="hero-copy"><h1>Sua próxima vaga, do jeito que faz sentido acompanhar.</h1><p>Cadastre seu currículo uma vez, candidate-se em poucos cliques e acompanhe todas as etapas do processo.</p></div><div className="hero-stats"><Stat value="18" label="vagas abertas agora" /><Stat value="3" label="etapas até a entrevista" /><Stat value="100%" label="revisão humana" /></div><small>© 2026 Projeto Integrador III- Portal do Candidato</small></section>
-    <section className="login-panel"><p className="eyebrow">Acesso ao sistema</p><h2>Entrar na sua conta</h2><p className="muted">Use os dados de demonstração ou escolha o acesso desejado.</p>
+    <section className="login-panel"><p className="eyebrow">Acesso ao sistema</p><h2>Entrar na sua conta</h2><p className="muted">Informe o e-mail e a senha cadastrados no sistema.</p>
       <Tabs value={role} onValueChange={changeRole}><TabsList className="login-tabs"><TabsTrigger value="candidate">Candidato</TabsTrigger><TabsTrigger value="hr">RH</TabsTrigger></TabsList></Tabs>
       <form onSubmit={submit}>
         {error && <Alert variant="destructive" className="login-alert"><ShieldCheck /><AlertTitle>Não foi possível entrar</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         <Field label="E-mail"><Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></Field><Field label="Senha"><Input value={senha} onChange={(event) => setSenha(event.target.value)} type="password" required /></Field>
         <div className="login-options"><label className="check-label"><Checkbox defaultChecked /> Manter conectado</label><Button type="button" variant="link" size="sm">Esqueci minha senha</Button></div><Button type="submit" className="brand-primary full" size="lg" disabled={submitting}>{submitting ? 'Entrando...' : `Entrar como ${role === 'candidate' ? 'candidato' : 'RH'}`}</Button>
       </form>
-      <Separator className="my-6" /><p className="center muted">Ainda não tem conta? <Button variant="link" className="inline-link">Criar cadastro</Button></p>
+      <Separator className="my-6" /><p className="center muted">Ainda não tem conta? <Button type="button" variant="link" className="inline-link" onClick={onCreateAccount}>Criar cadastro</Button></p>
     </section></main>;
 }
 
@@ -120,17 +120,21 @@ function Signup({ onBackToLogin }: { onBackToLogin: () => void }) {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.name.trim() || !form.email.trim()) { setError('Preencha nome e e-mail para continuar.'); return; }
     if (form.password.length < 8) { setError('A senha deve ter pelo menos 8 caracteres.'); return; }
     if (form.password !== form.confirmPassword) { setError('As senhas informadas não coincidem.'); return; }
     if (!accepted) { setError('É necessário aceitar os termos de uso e a política de privacidade.'); return; }
-    setError(null);
-    setSubmitted(true);
-    // TODO: integrar com POST /auth/cadastro quando o backend estiver disponível (RF02).
+    setError(null); setSubmitting(true);
+    try {
+      await authService.cadastrar({ nome: form.name.trim(), email: form.email.trim(), senha: form.password });
+      setSubmitted(true);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível concluir o cadastro.'); }
+    finally { setSubmitting(false); }
   };
 
   if (submitted) {
@@ -164,7 +168,7 @@ function Signup({ onBackToLogin }: { onBackToLogin: () => void }) {
         </div>
         <div className="login-options"><label className="check-label"><Checkbox checked={accepted} onCheckedChange={(value) => setAccepted(value === true)} /> Li e aceito os termos de uso e a política de privacidade (LGPD)</label></div>
         {error && <Alert variant="destructive" className="document-alert signup-error"><ShieldAlert /><AlertTitle>Não foi possível concluir o cadastro</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
-        <Button type="submit" className="brand-primary full" size="lg">Criar minha conta</Button>
+        <Button type="submit" className="brand-primary full" size="lg" disabled={submitting}>{submitting ? 'Criando conta...' : 'Criar minha conta'}</Button>
       </form>
       <Separator className="my-6" />
       <p className="center muted">Já tem uma conta? <Button variant="link" className="inline-link" onClick={onBackToLogin}>Entrar</Button></p>
