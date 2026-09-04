@@ -1,0 +1,6 @@
+# Copie este arquivo para application-local.properties e preencha com os dados do seu MySQL.
+# O arquivo application-local.properties NAO e versionado (ver backend/.gitignore).
+
+spring.datasource.url=jdbc:mysql://localhost:3306/selecao_rh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
+spring.datasource.username=seu_usuario
+spring.datasource.password=sua_senha

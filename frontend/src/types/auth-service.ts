@@ -1,42 +1,53 @@
-import type { LoginRequest, LoginResponse } from '@/types/auth';
+import type { LoginRequest, LoginResponse, SignupRequest, UsuarioResponse } from '@/types/auth';
+
+const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api').replace(/\/$/, '');
 
 export interface AuthService {
   login(credentials: LoginRequest): Promise<LoginResponse>;
+  cadastrar(dados: SignupRequest): Promise<UsuarioResponse>;
 }
 
-const mockAccounts: Record<string, { senha: string; response: LoginResponse }> = {
-  'marina.souza@email.com': { senha: 'senha123', response: { id: 1, nome: 'Marina Souza Andrade', email: 'marina.souza@email.com', perfil: 'candidato' } },
-  'camila.torres@email.com': { senha: 'senha123', response: { id: 2, nome: 'Camila Torres', email: 'camila.torres@email.com', perfil: 'rh' } },
-};
-
-function delay<T>(value: T): Promise<T> {
-  return new Promise((resolve) => window.setTimeout(() => resolve(value), 180));
-}
-
-export const mockAuthService: AuthService = {
-  async login({ email, senha }) {
-    const account = mockAccounts[email.trim().toLowerCase()];
-    if (!account || account.senha !== senha) throw new Error('E-mail ou senha inválidos.');
-    return delay(account.response);
-  },
-};
-
-export const restAuthService: AuthService = {
-  async login(credentials) {
-    const baseUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
-    if (!baseUrl) throw new Error('VITE_API_URL não está configurada.');
-    const response = await fetch(`${baseUrl}/auth/login`, {
+async function postJson(caminho: string, corpo: unknown): Promise<Response> {
+  try {
+    return await fetch(`${baseUrl}${caminho}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(corpo),
     });
+  } catch {
+    throw new Error(`Não foi possível conectar ao servidor (${baseUrl}). Verifique se o backend está no ar.`);
+  }
+}
+
+/** Extrai a mensagem do ErroResponse do backend; usa o padrao quando o corpo nao ajuda. */
+async function mensagemDeErro(response: Response, padrao: string): Promise<string> {
+  try {
+    const corpo = await response.json();
+    const campos = corpo?.campos as Record<string, string> | undefined;
+    if (campos) {
+      const primeiro = Object.values(campos)[0];
+      if (typeof primeiro === 'string') return primeiro;
+    }
+    if (typeof corpo?.mensagem === 'string') return corpo.mensagem;
+  } catch {
+    // corpo vazio ou fora do formato esperado
+  }
+  return padrao;
+}
+
+export const authService: AuthService = {
+  async login(credentials) {
+    const response = await postJson('/auth/login', credentials);
     if (response.status === 401) throw new Error('E-mail ou senha inválidos.');
     if (response.status === 403) throw new Error('Usuário bloqueado ou inativo. Entre em contato com o suporte.');
-    if (!response.ok) throw new Error('Não foi possível entrar. Tente novamente em instantes.');
+    if (!response.ok) throw new Error(await mensagemDeErro(response, 'Não foi possível entrar. Tente novamente em instantes.'));
     return response.json() as Promise<LoginResponse>;
   },
-};
 
-export const authService = import.meta.env.VITE_USE_MOCK_API === 'false'
-  ? restAuthService
-  : mockAuthService;
+  async cadastrar({ nome, email, senha }) {
+    const response = await postJson('/usuarios', { nome, email, senha, perfil: 'candidato' });
+    if (response.status === 409) throw new Error('Já existe uma conta cadastrada com este e-mail.');
+    if (!response.ok) throw new Error(await mensagemDeErro(response, 'Não foi possível concluir o cadastro. Tente novamente em instantes.'));
+    return response.json() as Promise<UsuarioResponse>;
+  },
+};
