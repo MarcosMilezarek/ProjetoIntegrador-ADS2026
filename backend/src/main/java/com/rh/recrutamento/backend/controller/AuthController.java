@@ -1,7 +1,7 @@
 package com.rh.recrutamento.backend.controller;
 
-import com.rh.recrutamento.backend.dto.LoginRequest;
-import com.rh.recrutamento.backend.dto.LoginResponse;
+import com.rh.recrutamento.backend.dto.auth.request.LoginRequest;
+import com.rh.recrutamento.backend.dto.auth.response.LoginResponse;
 import com.rh.recrutamento.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

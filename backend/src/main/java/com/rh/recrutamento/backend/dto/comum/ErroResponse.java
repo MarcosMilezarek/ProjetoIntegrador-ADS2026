@@ -1,4 +1,4 @@
-package com.rh.recrutamento.backend.dto;
+package com.rh.recrutamento.backend.dto.comum;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

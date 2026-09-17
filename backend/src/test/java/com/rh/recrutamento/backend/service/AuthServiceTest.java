@@ -1,14 +1,15 @@
 package com.rh.recrutamento.backend.service;
 
-import com.rh.recrutamento.backend.dto.LoginRequest;
-import com.rh.recrutamento.backend.dto.LoginResponse;
+import com.rh.recrutamento.backend.dto.auth.request.LoginRequest;
+import com.rh.recrutamento.backend.dto.auth.response.LoginResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.CredenciaisInvalidasException;
 import com.rh.recrutamento.backend.exception.UsuarioInativoException;
+import com.rh.recrutamento.backend.mapper.UsuarioMapperImpl;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,8 +29,12 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @InjectMocks
     private AuthService authService;
+
+    @BeforeEach
+    void montarService() {
+        authService = new AuthService(usuarioRepository, passwordEncoder, new UsuarioMapperImpl());
+    }
 
     @Test
     void deveAutenticarUsuarioAtivo() {

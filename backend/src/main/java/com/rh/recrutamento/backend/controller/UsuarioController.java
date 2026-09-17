@@ -1,8 +1,8 @@
 package com.rh.recrutamento.backend.controller;
 
-import com.rh.recrutamento.backend.dto.UsuarioRequest;
-import com.rh.recrutamento.backend.dto.UsuarioResponse;
-import com.rh.recrutamento.backend.dto.UsuarioUpdateRequest;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
+import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
 import com.rh.recrutamento.backend.service.UsuarioService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

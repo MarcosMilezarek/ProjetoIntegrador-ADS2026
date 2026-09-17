@@ -1,11 +1,12 @@
 package com.rh.recrutamento.backend.service;
 
-import com.rh.recrutamento.backend.dto.UsuarioRequest;
-import com.rh.recrutamento.backend.dto.UsuarioResponse;
-import com.rh.recrutamento.backend.dto.UsuarioUpdateRequest;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
+import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.EmailJaCadastradoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
+import com.rh.recrutamento.backend.mapper.UsuarioMapper;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,10 +21,13 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UsuarioMapper usuarioMapper;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder,
+                           UsuarioMapper usuarioMapper) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.usuarioMapper = usuarioMapper;
     }
 
     @Transactional
@@ -41,17 +45,17 @@ public class UsuarioService {
             request.status() != null ? request.status() : Usuario.Status.ativo
         );
 
-        return UsuarioResponse.de(usuarioRepository.save(usuario));
+        return usuarioMapper.toResponse(usuarioRepository.save(usuario));
     }
 
     public List<UsuarioResponse> listar() {
         return usuarioRepository.findAll().stream()
-            .map(UsuarioResponse::de)
+            .map(usuarioMapper::toResponse)
             .toList();
     }
 
     public UsuarioResponse buscarPorId(Long id) {
-        return UsuarioResponse.de(obterUsuario(id));
+        return usuarioMapper.toResponse(obterUsuario(id));
     }
 
     @Transactional
@@ -69,7 +73,7 @@ public class UsuarioService {
             usuario.alterarSenha(passwordEncoder.encode(request.senha()));
         }
 
-        return UsuarioResponse.de(usuarioRepository.save(usuario));
+        return usuarioMapper.toResponse(usuarioRepository.save(usuario));
     }
 
     @Transactional
