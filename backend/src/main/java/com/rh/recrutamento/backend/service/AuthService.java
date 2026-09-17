@@ -1,10 +1,11 @@
 package com.rh.recrutamento.backend.service;
 
-import com.rh.recrutamento.backend.dto.LoginRequest;
-import com.rh.recrutamento.backend.dto.LoginResponse;
+import com.rh.recrutamento.backend.dto.auth.request.LoginRequest;
+import com.rh.recrutamento.backend.dto.auth.response.LoginResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.CredenciaisInvalidasException;
 import com.rh.recrutamento.backend.exception.UsuarioInativoException;
+import com.rh.recrutamento.backend.mapper.UsuarioMapper;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,13 @@ public class AuthService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UsuarioMapper usuarioMapper;
 
-    public AuthService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder,
+                        UsuarioMapper usuarioMapper) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.usuarioMapper = usuarioMapper;
     }
 
     public LoginResponse autenticar(LoginRequest request) {
@@ -35,11 +39,6 @@ public class AuthService {
             throw new UsuarioInativoException();
         }
 
-        return new LoginResponse(
-            usuario.getId(),
-            usuario.getNome(),
-            usuario.getEmail(),
-            usuario.getPerfil().name()
-        );
+        return usuarioMapper.toLoginResponse(usuario);
     }
 }

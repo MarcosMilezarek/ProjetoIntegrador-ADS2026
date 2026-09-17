@@ -1,16 +1,17 @@
 package com.rh.recrutamento.backend.service;
 
-import com.rh.recrutamento.backend.dto.UsuarioRequest;
-import com.rh.recrutamento.backend.dto.UsuarioResponse;
-import com.rh.recrutamento.backend.dto.UsuarioUpdateRequest;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
+import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
+import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.EmailJaCadastradoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
+import com.rh.recrutamento.backend.mapper.UsuarioMapperImpl;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,8 +34,12 @@ class UsuarioServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @InjectMocks
     private UsuarioService usuarioService;
+
+    @BeforeEach
+    void montarService() {
+        usuarioService = new UsuarioService(usuarioRepository, passwordEncoder, new UsuarioMapperImpl());
+    }
 
     @Test
     void criarDeveCriptografarSenhaENormalizarEmail() {

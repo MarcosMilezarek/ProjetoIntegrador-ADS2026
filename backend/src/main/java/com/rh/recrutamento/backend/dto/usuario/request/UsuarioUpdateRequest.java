@@ -1,4 +1,4 @@
-package com.rh.recrutamento.backend.dto;
+package com.rh.recrutamento.backend.dto.usuario.request;
 
 import com.rh.recrutamento.backend.entity.Usuario;
 import jakarta.validation.constraints.Email;

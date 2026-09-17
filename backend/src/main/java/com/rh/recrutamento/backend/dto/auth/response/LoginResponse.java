@@ -1,4 +1,4 @@
-package com.rh.recrutamento.backend.dto;
+package com.rh.recrutamento.backend.dto.auth.response;
 
 public record LoginResponse(
     Long id,

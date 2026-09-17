@@ -1,14 +1,7 @@
--- Schema MySQL - Sistema de Processo Seletivo
--- Mantido aqui como referencia geral do modelo de dados.
--- A fonte da verdade para provisionar o banco agora e o Flyway, em
--- backend/src/main/resources/db/migration (roda automaticamente no startup da aplicacao).
+-- Schema inicial - Sistema de Processo Seletivo
+-- Espelha database/schema.sql. O Flyway conecta direto no schema configurado
+-- em DB_NAME, por isso nao ha CREATE DATABASE/USE aqui.
 -- Ordem de criacao respeita as dependencias de chave estrangeira.
-
-CREATE DATABASE IF NOT EXISTS selecao_rh
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
-USE selecao_rh;
 
 -- ---------------------------------------------------------------
 -- usuario

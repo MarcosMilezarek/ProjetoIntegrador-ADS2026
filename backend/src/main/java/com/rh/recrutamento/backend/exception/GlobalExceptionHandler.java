@@ -1,6 +1,6 @@
 package com.rh.recrutamento.backend.exception;
 
-import com.rh.recrutamento.backend.dto.ErroResponse;
+import com.rh.recrutamento.backend.dto.comum.ErroResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -38,6 +38,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UsuarioInativoException.class)
     public ResponseEntity<ErroResponse> tratarUsuarioInativo(UsuarioInativoException ex) {
         return construir(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(RhInvalidoException.class)
+    public ResponseEntity<ErroResponse> tratarRhInvalido(RhInvalidoException ex) {
+        return construir(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(CandidatoInvalidoException.class)
+    public ResponseEntity<ErroResponse> tratarCandidatoInvalido(CandidatoInvalidoException ex) {
+        return construir(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(CurriculoJaExisteException.class)
+    public ResponseEntity<ErroResponse> tratarCurriculoDuplicado(CurriculoJaExisteException ex) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
