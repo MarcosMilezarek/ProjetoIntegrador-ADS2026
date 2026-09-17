@@ -6,6 +6,7 @@ import type {
   CandidateProfile,
   DocumentStatus,
   Job,
+  JobStatus,
   NewJobInput,
   NotificationItem,
 } from '@/types/domain';
@@ -14,21 +15,28 @@ import { restPortalService } from '@/services/rest-portal-service';
 const today = '21/08/2026';
 
 const seedJobs: Job[] = [
-  { id: 'job-java', title: 'Desenvolvedor(a) Back-end Java', department: 'Tecnologia', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'CLT', publishedAt: '02/08/2026', closesAt: '02/09/2026', applicants: 14, status: 'open', tags: ['Java', 'Spring Boot', 'SQL'], description: 'Atue na squad responsável pelo Sistema de Gerenciamento de Vagas, construindo APIs REST, integrações e modelos de dados para os produtos internos do RH.', requirements: ['Experiência com Java e Spring Boot.', 'Conhecimento em banco de dados relacional.', 'Vivência com Git e metodologias ágeis.', 'Desejável conhecimento em JWT e APIs RESTful.'], benefits: ['Vale-refeição', 'Plano de saúde', 'Horário flexível'] },
-  { id: 'job-react', title: 'Desenvolvedora Front-end React', department: 'Tecnologia', city: 'Remoto', workModel: 'Remoto', contract: 'CLT', publishedAt: '04/08/2026', closesAt: '12/09/2026', applicants: 9, status: 'open', tags: ['React', 'TypeScript', 'UI'], description: 'Construa experiências acessíveis e consistentes para produtos de gestão de pessoas.', requirements: ['React e TypeScript.', 'Consumo de APIs REST.', 'Conhecimento de design systems.'], benefits: ['Trabalho remoto', 'Plano de saúde', 'Auxílio educação'] },
-  { id: 'job-data', title: 'Analista de Dados Jr.', department: 'Dados', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'Estágio', publishedAt: '28/07/2026', closesAt: '26/08/2026', applicants: 21, status: 'open', tags: ['Power BI', 'Python', 'SQL'], description: 'Apoie a organização de dados e a criação de indicadores para as áreas de negócio.', requirements: ['SQL básico.', 'Interesse em visualização de dados.', 'Organização e comunicação.'], benefits: ['Bolsa estágio', 'Vale-transporte', 'Mentoria'] },
-  { id: 'job-hr', title: 'Analista de Recursos Humanos', department: 'Recursos Humanos', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '24/07/2026', closesAt: '23/08/2026', applicants: 7, status: 'closing', tags: ['Recrutamento', 'Comunicação'], description: 'Conduza processos seletivos e apoie as rotinas de pessoas.', requirements: ['Experiência com recrutamento.', 'Boa comunicação.', 'Organização de processos.'], benefits: ['Vale-refeição', 'Plano de saúde'] },
-  { id: 'job-support', title: 'Analista de Suporte Técnico', department: 'Infraestrutura', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '30/06/2026', closesAt: '30/07/2026', applicants: 18, status: 'closed', tags: ['Redes', 'Atendimento'], description: 'Atenda usuários internos e mantenha o ambiente tecnológico operacional.', requirements: ['Conhecimento básico de redes.', 'Experiência com atendimento.'], benefits: ['Vale-refeição', 'Plano de saúde'] },
+  { id: 'job-java', title: 'Desenvolvedor(a) Back-end Java', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'CLT', publishedAt: '02/08/2026', closesAt: '2026-09-02', status: 'aberta', description: 'Atue na squad responsável pelo Sistema de Gerenciamento de Vagas, construindo APIs REST, integrações e modelos de dados para os produtos internos do RH.', requirements: ['Experiência com Java e Spring Boot.', 'Conhecimento em banco de dados relacional.', 'Vivência com Git e metodologias ágeis.', 'Desejável conhecimento em JWT e APIs RESTful.'] },
+  { id: 'job-react', title: 'Desenvolvedora Front-end React', city: 'Remoto', workModel: 'Remoto', contract: 'CLT', publishedAt: '04/08/2026', closesAt: '2026-09-12', status: 'aberta', description: 'Construa experiências acessíveis e consistentes para produtos de gestão de pessoas.', requirements: ['React e TypeScript.', 'Consumo de APIs REST.', 'Conhecimento de design systems.'] },
+  { id: 'job-data', title: 'Analista de Dados Jr.', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'Estágio', publishedAt: '28/07/2026', closesAt: '2026-08-26', status: 'aberta', description: 'Apoie a organização de dados e a criação de indicadores para as áreas de negócio.', requirements: ['SQL básico.', 'Interesse em visualização de dados.', 'Organização e comunicação.'] },
+  { id: 'job-hr', title: 'Analista de Recursos Humanos', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '24/07/2026', closesAt: '2026-08-23', status: 'aberta', description: 'Conduza processos seletivos e apoie as rotinas de pessoas.', requirements: ['Experiência com recrutamento.', 'Boa comunicação.', 'Organização de processos.'] },
+  { id: 'job-support', title: 'Analista de Suporte Técnico', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '30/06/2026', closesAt: '2026-07-30', status: 'encerrada', description: 'Atenda usuários internos e mantenha o ambiente tecnológico operacional.', requirements: ['Conhecimento básico de redes.', 'Experiência com atendimento.'] },
 ];
 
 const seedProfile: CandidateProfile = {
-  id: 'candidate-marina', name: 'Marina Souza Andrade', email: 'marina.souza@email.com', phone: '(54) 99911-2233', city: 'Erechim / RS', education: 'Tecnólogo em Análise e Desenvolvimento de Sistemas - IFRS Campus Erechim (2023 - 2026, cursando)', experience: 'Estágio em desenvolvimento web (2025 - atual). React, TypeScript, APIs REST, SQL e atendimento a usuários internos.', skills: ['React', 'TypeScript', 'Java', 'SQL', 'Comunicação'], completion: 82,
+  id: 'curriculo-marina',
+  education: 'Tecnólogo em Análise e Desenvolvimento de Sistemas - IFRS Campus Erechim (2023 - 2026, cursando)',
+  experience: 'Estágio em desenvolvimento web (2025 - atual). React, TypeScript, APIs REST, SQL e atendimento a usuários internos.',
+  skills: ['React', 'TypeScript', 'Java', 'SQL', 'Comunicação'],
+  resumo: '',
+  updatedAt: '02/08/2026',
 };
 
+const candidateIdentity = { id: 'candidate-marina', name: 'Marina Souza Andrade', email: 'marina.souza@email.com' };
+
 const seedApplications: Application[] = [
-  { id: 'app-java', jobId: 'job-java', candidateId: 'candidate-marina', submittedAt: '05/08/2026', status: 'reviewing', match: 92 },
-  { id: 'app-data', jobId: 'job-data', candidateId: 'candidate-marina', submittedAt: '02/08/2026', status: 'interview', match: 87 },
-  { id: 'app-hr', jobId: 'job-hr', candidateId: 'candidate-marina', submittedAt: '28/07/2026', status: 'approved', match: 68 },
+  { id: 'app-java', jobId: 'job-java', candidateId: candidateIdentity.id, submittedAt: '05/08/2026', status: 'reviewing', match: 92 },
+  { id: 'app-data', jobId: 'job-data', candidateId: candidateIdentity.id, submittedAt: '02/08/2026', status: 'interview', match: 87 },
+  { id: 'app-hr', jobId: 'job-hr', candidateId: candidateIdentity.id, submittedAt: '28/07/2026', status: 'approved', match: 68 },
 ];
 
 const seedDocuments: CandidateDocument[] = [
@@ -60,10 +68,10 @@ function delay<T>(value: T): Promise<T> { return new Promise((resolve) => window
 
 export interface PortalService {
   getJobs(): Promise<Job[]>;
-  saveJob(input: NewJobInput & { id?: string }): Promise<Job>;
-  deleteJob(id: string): Promise<void>;
-  getProfile(): Promise<CandidateProfile>;
-  updateProfile(profile: CandidateProfile): Promise<CandidateProfile>;
+  saveJob(input: NewJobInput & { id?: string; status?: JobStatus }, rhId: string): Promise<Job>;
+  closeJob(id: string): Promise<Job>;
+  getProfile(usuarioId: string): Promise<CandidateProfile>;
+  updateProfile(usuarioId: string, profile: CandidateProfile): Promise<CandidateProfile>;
   getApplications(): Promise<Application[]>;
   apply(jobId: string): Promise<Application>;
   getCandidates(jobId: string): Promise<Candidate[]>;
@@ -79,34 +87,41 @@ export const mockPortalService: PortalService = {
   async getJobs() { return delay(getStore().jobs); },
   async saveJob(input) {
     const store = getStore();
-    const job: Job = input.id
-      ? { ...store.jobs.find((item) => item.id === input.id)!, ...input }
-      : { ...input, id: crypto.randomUUID(), applicants: 0, publishedAt: today, status: 'open' };
-    store.jobs = input.id ? store.jobs.map((item) => item.id === input.id ? job : item) : [job, ...store.jobs];
+    const existing = input.id ? store.jobs.find((item) => item.id === input.id) : undefined;
+    const job: Job = existing
+      ? { ...existing, ...input, status: input.status ?? existing.status }
+      : { ...input, id: crypto.randomUUID(), publishedAt: today, status: 'aberta' };
+    store.jobs = existing ? store.jobs.map((item) => item.id === job.id ? job : item) : [job, ...store.jobs];
     saveStore(store);
     return delay(job);
   },
-  async deleteJob(id) { const store = getStore(); store.jobs = store.jobs.filter((job) => job.id !== id); saveStore(store); return delay(undefined); },
+  async closeJob(id) {
+    const store = getStore();
+    const job = store.jobs.find((item) => item.id === id);
+    if (!job) throw new Error('Vaga não encontrada');
+    job.status = 'encerrada';
+    saveStore(store);
+    return delay(job);
+  },
   async getProfile() { return delay(getStore().profile); },
-  async updateProfile(profile) { const store = getStore(); store.profile = profile; saveStore(store); return delay(profile); },
+  async updateProfile(_usuarioId, profile) { const store = getStore(); store.profile = profile; saveStore(store); return delay(profile); },
   async getApplications() { return delay(getStore().applications); },
   async apply(jobId) {
     const store = getStore();
     const existing = store.applications.find((app) => app.jobId === jobId);
     if (existing) return delay(existing);
-    const application: Application = { id: crypto.randomUUID(), jobId, candidateId: store.profile.id, submittedAt: today, status: 'applied', match: 82 };
+    const application: Application = { id: crypto.randomUUID(), jobId, candidateId: candidateIdentity.id, submittedAt: today, status: 'applied', match: 82 };
     store.applications = [application, ...store.applications];
-    store.jobs = store.jobs.map((job) => job.id === jobId ? { ...job, applicants: job.applicants + 1 } : job);
     saveStore(store);
     return delay(application);
   },
   async getCandidates(jobId) {
     const store = getStore();
-    const realCandidate = store.applications.filter((app) => app.jobId === jobId).map((app) => ({ ...store.profile, applicationId: app.id, submittedAt: app.submittedAt, match: app.match, status: app.status }));
+    const realCandidate: Candidate[] = store.applications.filter((app) => app.jobId === jobId).map((app) => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, match: app.match, status: app.status }));
     const samples: Candidate[] = [
-      { ...store.profile, id: 'candidate-rafael', name: 'Rafael Lima Costa', email: 'rafael.lima@email.com', applicationId: 'sample-rafael', submittedAt: '03/08/2026', match: 87, status: 'reviewing' },
-      { ...store.profile, id: 'candidate-juliana', name: 'Juliana Ferreira Melo', email: 'juliana.melo@email.com', applicationId: 'sample-juliana', submittedAt: '02/08/2026', match: 68, status: 'reviewing' },
-      { ...store.profile, id: 'candidate-caio', name: 'Caio Henrique Alves', email: 'caio.alves@email.com', applicationId: 'sample-caio', submittedAt: '01/08/2026', match: 61, status: 'interview' },
+      { id: 'candidate-rafael', name: 'Rafael Lima Costa', email: 'rafael.lima@email.com', applicationId: 'sample-rafael', submittedAt: '03/08/2026', match: 87, status: 'reviewing' },
+      { id: 'candidate-juliana', name: 'Juliana Ferreira Melo', email: 'juliana.melo@email.com', applicationId: 'sample-juliana', submittedAt: '02/08/2026', match: 68, status: 'reviewing' },
+      { id: 'candidate-caio', name: 'Caio Henrique Alves', email: 'caio.alves@email.com', applicationId: 'sample-caio', submittedAt: '01/08/2026', match: 61, status: 'interview' },
     ];
     return delay([...realCandidate, ...samples].sort((a, b) => b.match - a.match));
   },
@@ -118,6 +133,13 @@ export const mockPortalService: PortalService = {
   async markNotificationsRead() { const store = getStore(); store.notifications = store.notifications.map((notification) => ({ ...notification, read: true })); saveStore(store); return delay(undefined); },
 };
 
-export const portalService = import.meta.env.VITE_USE_MOCK_API === 'false'
-  ? restPortalService
+export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API === 'false'
+  ? {
+      ...mockPortalService,
+      getJobs: restPortalService.getJobs,
+      saveJob: restPortalService.saveJob,
+      closeJob: restPortalService.closeJob,
+      getProfile: restPortalService.getProfile,
+      updateProfile: restPortalService.updateProfile,
+    }
   : mockPortalService;

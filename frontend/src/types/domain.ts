@@ -1,35 +1,28 @@
 export type UserRole = 'candidate' | 'hr';
-export type JobStatus = 'open' | 'closing' | 'closed';
+export type JobStatus = 'rascunho' | 'aberta' | 'encerrada';
 export type ApplicationStatus = 'applied' | 'reviewing' | 'interview' | 'approved' | 'rejected';
 export type DocumentStatus = 'pending' | 'reviewing' | 'approved' | 'rejected';
 
 export type Job = {
   id: string;
   title: string;
-  department: string;
   city: string;
   workModel: 'Presencial' | 'Híbrido' | 'Remoto';
-  contract: 'CLT' | 'Estágio' | 'PJ';
+  contract: 'CLT' | 'Estágio' | 'PJ' | 'Temporário';
   publishedAt: string;
-  closesAt: string;
-  applicants: number;
+  closesAt?: string;
   status: JobStatus;
-  tags: string[];
   description: string;
   requirements: string[];
-  benefits: string[];
 };
 
 export type CandidateProfile = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  city: string;
+  id?: string;
   education: string;
   experience: string;
   skills: string[];
-  completion: number;
+  resumo: string;
+  updatedAt?: string;
 };
 
 export type Application = {
@@ -42,7 +35,10 @@ export type Application = {
   notes?: string;
 };
 
-export type Candidate = CandidateProfile & {
+export type Candidate = {
+  id: string;
+  name: string;
+  email: string;
   applicationId: string;
   submittedAt: string;
   match: number;
@@ -65,4 +61,4 @@ export type NotificationItem = {
   read: boolean;
 };
 
-export type NewJobInput = Omit<Job, 'id' | 'applicants' | 'publishedAt' | 'status'>;
+export type NewJobInput = Omit<Job, 'id' | 'publishedAt' | 'status'>;
