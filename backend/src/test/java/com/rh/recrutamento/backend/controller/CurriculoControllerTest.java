@@ -238,6 +238,19 @@ class CurriculoControllerTest {
             .andExpect(status().isNotFound());
     }
 
+    @Test
+    void postComDemissaoAntesDaContratacaoDeveRetornar400() throws Exception {
+        String corpo = """
+            {"usuarioId":1,"experiencias":[{"cargo":"Dev","empresa":"Acme",
+             "dataContratacao":"2024-01-10","dataDemissao":"2023-05-30","trabalhoAtual":false}]}
+            """;
+
+        mockMvc.perform(post("/curriculos").contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos['experiencias[0].periodoValido']").exists());
+        verifyNoInteractions(curriculoService);
+    }
+
     private CurriculoRequest requestCompleto() {
         return new CurriculoRequest(
             1L, LocalDate.of(1998, 4, 12), Curriculo.Sexo.feminino, "Campinas", "SP",
