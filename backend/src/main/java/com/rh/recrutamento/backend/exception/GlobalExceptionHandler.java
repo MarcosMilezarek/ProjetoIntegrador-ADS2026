@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -85,6 +86,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErroResponse> tratarCorpoIlegivel(HttpMessageNotReadableException ex) {
         return construir(HttpStatus.BAD_REQUEST, "Requisição malformada ou com valores inválidos.");
+    }
+
+    /** Rota que nao existe (cai no handler de recursos estaticos): 404, nao 500. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErroResponse> tratarRotaInexistente(NoResourceFoundException ex) {
+        return construir(HttpStatus.NOT_FOUND, "Recurso nao encontrado.");
     }
 
     @ExceptionHandler(Exception.class)

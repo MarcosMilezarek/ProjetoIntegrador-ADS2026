@@ -110,9 +110,13 @@ public class Curriculo {
         this.experiencias.add(experiencia);
     }
 
-    public void definirArquivo(CurriculoArquivo arquivo) {
-        arquivo.vincular(this);
-        this.arquivo = arquivo;
+    public void definirArquivo(CurriculoArquivo novo) {
+        if (this.arquivo == null) {
+            novo.vincular(this);
+            this.arquivo = novo;
+        } else {
+            this.arquivo.substituirPor(novo);
+        }
     }
 
     public enum Sexo { feminino, masculino, outro, nao_informado }

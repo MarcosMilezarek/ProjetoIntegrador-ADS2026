@@ -102,14 +102,16 @@ public class CurriculoService {
     public CurriculoResponse anexarArquivo(Long id, MultipartFile arquivo) {
         Curriculo curriculo = obterCurriculo(id);
         CurriculoArquivo anterior = curriculo.getArquivo();
+        // definirArquivo atualiza a entidade existente no lugar, entao o nome antigo precisa ser lido antes.
+        String nomeAnterior = anterior != null ? anterior.getNomeArmazenado() : null;
 
         String nomeArmazenado = arquivoStorage.salvar(arquivo);
         curriculo.definirArquivo(new CurriculoArquivo(
             arquivo.getOriginalFilename(), nomeArmazenado, arquivo.getContentType(), arquivo.getSize()));
 
         Curriculo salvo = curriculoRepository.save(curriculo);
-        if (anterior != null) {
-            arquivoStorage.remover(anterior.getNomeArmazenado());
+        if (nomeAnterior != null) {
+            arquivoStorage.remover(nomeAnterior);
         }
         return curriculoMapper.toResponse(salvo);
     }

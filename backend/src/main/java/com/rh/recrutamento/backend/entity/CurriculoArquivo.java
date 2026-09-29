@@ -50,4 +50,13 @@ public class CurriculoArquivo {
     void vincular(Curriculo curriculo) {
         this.curriculo = curriculo;
     }
+
+    /** Reaproveita a linha existente (uk_arquivo_curriculo permite uma por curriculo) em vez de inserir outra. */
+    void substituirPor(CurriculoArquivo novo) {
+        this.nomeOriginal = novo.nomeOriginal;
+        this.nomeArmazenado = novo.nomeArmazenado;
+        this.contentType = novo.contentType;
+        this.tamanhoBytes = novo.tamanhoBytes;
+        this.enviadoEm = LocalDateTime.now();
+    }
 }
