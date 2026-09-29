@@ -26,35 +26,87 @@ CREATE TABLE usuario (
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------
--- candidato (extensao 1:1 de usuario com perfil = 'candidato')
+-- curriculo (1:1 com usuario de perfil 'candidato')
+-- Concentra dados pessoais, contato e conteudo do candidato.
 -- ---------------------------------------------------------------
-CREATE TABLE candidato (
-    usuario_id     BIGINT UNSIGNED PRIMARY KEY,
-    telefone       VARCHAR(20),
-    cidade         VARCHAR(100),
-    uf             CHAR(2),
+CREATE TABLE curriculo (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    usuario_id      BIGINT UNSIGNED                                        NOT NULL,
     data_nascimento DATE,
-    linkedin_url   VARCHAR(255),
-    CONSTRAINT fk_candidato_usuario
+    sexo            ENUM('feminino', 'masculino', 'outro', 'nao_informado'),
+    cidade          VARCHAR(100),
+    uf              CHAR(2),
+    numero_contato  VARCHAR(20),
+    perfil_linkedin VARCHAR(255),
+    competencias    TEXT,
+    certificacoes   TEXT,
+    resumo          TEXT,
+    atualizado_em   DATETIME                                               NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_curriculo_usuario (usuario_id),
+    CONSTRAINT fk_curriculo_usuario
         FOREIGN KEY (usuario_id) REFERENCES usuario (id)
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------
--- curriculo (1:1 com candidato)
+-- curriculo_formacao (1:N)
 -- ---------------------------------------------------------------
-CREATE TABLE curriculo (
-    id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    candidato_id  BIGINT UNSIGNED                              NOT NULL,
-    formacao      TEXT,
-    experiencias  TEXT,
-    competencias  TEXT,
-    resumo        TEXT,
-    atualizado_em DATETIME                                     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_curriculo_candidato (candidato_id),
-    CONSTRAINT fk_curriculo_candidato
-        FOREIGN KEY (candidato_id) REFERENCES candidato (usuario_id)
+CREATE TABLE curriculo_formacao (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    curriculo_id BIGINT UNSIGNED NOT NULL,
+    curso        VARCHAR(150)    NOT NULL,
+    instituicao  VARCHAR(150)    NOT NULL,
+    data_inicio  DATE            NOT NULL,
+    -- nula quando o curso esta em andamento
+    data_termino DATE,
+    CONSTRAINT fk_formacao_curriculo
+        FOREIGN KEY (curriculo_id) REFERENCES curriculo (id)
         ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_formacao_curriculo ON curriculo_formacao (curriculo_id);
+
+-- ---------------------------------------------------------------
+-- curriculo_experiencia (1:N)
+-- ---------------------------------------------------------------
+CREATE TABLE curriculo_experiencia (
+    id                   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    curriculo_id         BIGINT UNSIGNED NOT NULL,
+    cargo                VARCHAR(150)    NOT NULL,
+    empresa              VARCHAR(150)    NOT NULL,
+    data_contratacao     DATE            NOT NULL,
+    data_demissao        DATE,
+    trabalho_atual       BOOLEAN         NOT NULL DEFAULT FALSE,
+    descricao_atividades TEXT,
+    CONSTRAINT fk_experiencia_curriculo
+        FOREIGN KEY (curriculo_id) REFERENCES curriculo (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    -- emprego atual nao tem data de demissao
+    CONSTRAINT chk_experiencia_trabalho_atual
+        CHECK (trabalho_atual = FALSE OR data_demissao IS NULL),
+    CONSTRAINT chk_experiencia_periodo
+        CHECK (data_demissao IS NULL OR data_demissao >= data_contratacao)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_experiencia_curriculo ON curriculo_experiencia (curriculo_id);
+
+-- ---------------------------------------------------------------
+-- curriculo_arquivo (1:1) - PDF do curriculo; o binario fica em disco
+-- ---------------------------------------------------------------
+CREATE TABLE curriculo_arquivo (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    curriculo_id    BIGINT UNSIGNED NOT NULL,
+    nome_original   VARCHAR(255)    NOT NULL,
+    nome_armazenado VARCHAR(255)    NOT NULL,
+    content_type    VARCHAR(100)    NOT NULL,
+    tamanho_bytes   INT UNSIGNED    NOT NULL,
+    enviado_em      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_arquivo_curriculo (curriculo_id),
+    CONSTRAINT fk_arquivo_curriculo
+        FOREIGN KEY (curriculo_id) REFERENCES curriculo (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_arquivo_tamanho
+        CHECK (tamanho_bytes <= 5242880)
 ) ENGINE = InnoDB;
 
 -- ---------------------------------------------------------------
@@ -85,14 +137,14 @@ CREATE INDEX idx_vaga_status ON vaga (status);
 -- ---------------------------------------------------------------
 CREATE TABLE candidatura (
     id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    candidato_id     BIGINT UNSIGNED                                                            NOT NULL,
+    usuario_id       BIGINT UNSIGNED                                                            NOT NULL,
     vaga_id          BIGINT UNSIGNED                                                             NOT NULL,
     status           ENUM('inscrito', 'em_triagem', 'entrevista', 'aprovado', 'reprovado',
                           'contratado', 'cancelado')                                              NOT NULL DEFAULT 'inscrito',
     data_candidatura DATETIME                                                                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_candidatura_candidato_vaga (candidato_id, vaga_id),
-    CONSTRAINT fk_candidatura_candidato
-        FOREIGN KEY (candidato_id) REFERENCES candidato (usuario_id)
+    UNIQUE KEY uk_candidatura_usuario_vaga (usuario_id, vaga_id),
+    CONSTRAINT fk_candidatura_usuario
+        FOREIGN KEY (usuario_id) REFERENCES usuario (id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_candidatura_vaga
         FOREIGN KEY (vaga_id) REFERENCES vaga (id)
@@ -100,7 +152,7 @@ CREATE TABLE candidatura (
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_candidatura_vaga ON candidatura (vaga_id);
-CREATE INDEX idx_candidatura_candidato ON candidatura (candidato_id);
+CREATE INDEX idx_candidatura_usuario ON candidatura (usuario_id);
 
 -- ---------------------------------------------------------------
 -- documento

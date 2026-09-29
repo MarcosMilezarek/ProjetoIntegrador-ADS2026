@@ -1,14 +1,27 @@
 package com.rh.recrutamento.backend.dto.curriculo.response;
 
-import java.time.LocalDateTime;
+import com.rh.recrutamento.backend.entity.Curriculo;
 
-/** Saida de curriculo. */
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+/** Saida de curriculo. A idade e derivada de dataNascimento, nao persistida. */
 public record CurriculoResponse(
     Long id,
     Long usuarioId,
-    String formacao,
-    String experiencias,
+    LocalDate dataNascimento,
+    Integer idade,
+    Curriculo.Sexo sexo,
+    String cidade,
+    String uf,
+    String numeroContato,
+    String perfilLinkedin,
     String competencias,
+    String certificacoes,
     String resumo,
+    List<FormacaoResponse> formacoes,
+    List<ExperienciaResponse> experiencias,
+    ArquivoResponse arquivo,
     LocalDateTime atualizadoEm
 ) {}

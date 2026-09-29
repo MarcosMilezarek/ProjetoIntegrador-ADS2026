@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,6 +54,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CurriculoJaExisteException.class)
     public ResponseEntity<ErroResponse> tratarCurriculoDuplicado(CurriculoJaExisteException ex) {
         return construir(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(ArquivoInvalidoException.class)
+    public ResponseEntity<ErroResponse> tratarArquivoInvalido(ArquivoInvalidoException ex) {
+        return construir(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** Estouro do limite de multipart do servidor, antes de chegar na validacao de negocio. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErroResponse> tratarArquivoGrande(MaxUploadSizeExceededException ex) {
+        return construir(HttpStatus.PAYLOAD_TOO_LARGE, "O arquivo deve ter no maximo 5MB.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
