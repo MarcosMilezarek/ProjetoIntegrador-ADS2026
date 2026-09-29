@@ -49,9 +49,12 @@ Portal do Candidato e do Painel do RH.
   > também passou a ter dados pessoais (dataNascimento, sexo, cidade, uf), contato
   > (numeroContato, perfilLinkedin), `certificacoes`, `idade` (calculada, somente leitura) e
   > upload de PDF (`POST /curriculos/{id}/arquivo`, multipart, campo `arquivo`).
-  > Os campos antigos que o front ainda envia são simplesmente ignorados pela API — a tela não
-  > quebra, mas **para de salvar formação e experiência**. A tela "Meu currículo" e os tipos em
-  > `domain.ts` precisam ser refeitos para o novo formato (ver `backend/CONTEXTO.md`).
+  > **Hoje o salvamento do currículo responde 400 em produção** (verificado em 2026-09-29):
+  > o front envia `experiencias` como string e a API espera uma lista, o que quebra a
+  > desserialização (`Requisição malformada ou com valores inválidos.`). Já `formacao`, que virou
+  > campo desconhecido, é apenas ignorado. A tela "Meu currículo" e os tipos em `domain.ts`
+  > precisam ser refeitos para o novo formato antes de voltar a funcionar (ver
+  > `backend/CONTEXTO.md` para o contrato completo).
 - Essas duas últimas só ficam ativas com `VITE_USE_MOCK_API=false` (ver composição híbrida
   abaixo); o identificador do usuário logado (`{id, nome, email, perfil}`) é guardado em
   `currentUser` (estado do `App`) e passado explicitamente a cada chamada, já que não há sessão
