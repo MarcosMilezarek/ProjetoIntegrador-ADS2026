@@ -2,7 +2,23 @@
 
 > Histórico do que já foi desenvolvido e em que etapa o frontend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
-> precisar reconstruir o contexto do zero. Última atualização: 2026-09-17.
+> precisar reconstruir o contexto do zero. Última atualização: 2026-09-29.
+
+## Visual (redesign de 2026-09-29)
+
+- Marca **TeamUp** (substitui "Vagas+"). Direção visual "Liquid Glass" em verde: fundo branco
+  com halos verdes desfocados, superfícies de vidro translúcido, navbar de vidro flutuante,
+  orbe verde em CSS no login, Fustat (títulos) + Inter (corpo). Sistema documentado em
+  [`../DESIGN.md`](../DESIGN.md); contexto de produto em [`../PRODUCT.md`](../PRODUCT.md).
+- Tema claro/escuro: padrão segue o sistema; o usuário pode fixar claro ou escuro (salvo em
+  `localStorage`, chave `teamup-theme`). Script em `index.html` aplica o tema antes da pintura.
+- Todos os estilos estão em `src/styles.css` (tokens em `:root` e `.dark`).
+- Mudanças de UX: removidos controles sem função (abas Candidato/RH do login, "Manter
+  conectado", "Esqueci minha senha", telefone/cidade do cadastro que não eram enviados);
+  erros de ações viram aviso em vez de falhar em silêncio; falha no carregamento inicial mostra
+  "Tentar novamente" (não fica mais preso em "Carregando"); ações pós-login não recarregam a
+  tela inteira; encerrar vaga pede confirmação; áreas ainda mockadas mostram
+  "Dados de demonstração"; celular tem barra de abas inferior e tabelas viram fichas.
 
 ## Stack
 
@@ -26,6 +42,16 @@ Portal do Candidato e do Painel do RH.
 - **Currículo**: `portalService.getProfile/updateProfile` → `GET /curriculos/usuario/{usuarioId}`
   (404 tratado como "candidato ainda sem currículo") e `POST /curriculos` (primeiro salvamento) ou
   `PUT /curriculos/{id}` (edições seguintes — usa o **id do currículo**, não o `usuarioId`).
+  > **Pendência (2026-09-29): o contrato do currículo mudou no backend e o front está defasado.**
+  > `formacao` e `experiencias` não são mais texto livre: viraram listas estruturadas
+  > (`formacoes[]` com curso/instituição/dataInicio/dataTermino e `experiencias[]` com
+  > cargo/empresa/dataContratacao/dataDemissao/trabalhoAtual/descricaoAtividades). O currículo
+  > também passou a ter dados pessoais (dataNascimento, sexo, cidade, uf), contato
+  > (numeroContato, perfilLinkedin), `certificacoes`, `idade` (calculada, somente leitura) e
+  > upload de PDF (`POST /curriculos/{id}/arquivo`, multipart, campo `arquivo`).
+  > Os campos antigos que o front ainda envia são simplesmente ignorados pela API — a tela não
+  > quebra, mas **para de salvar formação e experiência**. A tela "Meu currículo" e os tipos em
+  > `domain.ts` precisam ser refeitos para o novo formato (ver `backend/CONTEXTO.md`).
 - Essas duas últimas só ficam ativas com `VITE_USE_MOCK_API=false` (ver composição híbrida
   abaixo); o identificador do usuário logado (`{id, nome, email, perfil}`) é guardado em
   `currentUser` (estado do `App`) e passado explicitamente a cada chamada, já que não há sessão

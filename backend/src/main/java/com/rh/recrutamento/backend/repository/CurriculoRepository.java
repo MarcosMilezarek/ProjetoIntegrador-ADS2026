@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface CurriculoRepository extends JpaRepository<Curriculo, Long> {
 
-    boolean existsByCandidato_UsuarioId(Long usuarioId);
+    boolean existsByUsuario_Id(Long usuarioId);
 
-    Optional<Curriculo> findByCandidato_UsuarioId(Long usuarioId);
+    Optional<Curriculo> findByUsuario_Id(Long usuarioId);
 }

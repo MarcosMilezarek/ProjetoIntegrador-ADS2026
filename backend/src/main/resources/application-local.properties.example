@@ -1,5 +1,12 @@
-# Copie este arquivo para application-local.properties e preencha com os dados do seu MySQL.
+# Copie este arquivo para application-local.properties e preencha com os dados do MySQL.
 # O arquivo application-local.properties NAO e versionado (ver backend/.gitignore).
+#
+# ATENCAO: o que estiver aqui SOBRESCREVE o application.properties. Se o host apontar para
+# um servidor inalcancavel, a aplicacao nao sobe (o Flyway falha no startup).
+#
+# O MySQL do projeto e o da VPS e so aceita conexao de localhost na VM. Para rodar o backend
+# na sua maquina, abra um tunel SSH antes e mantenha a url apontando para localhost:
+#   gcloud compute ssh --zone "southamerica-east1-c" cloudvmads #     --project "project-9558c67f-ba71-45f5-82b" -- -L 3306:localhost:3306
 
 spring.datasource.url=jdbc:mysql://localhost:3306/selecao_rh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
 spring.datasource.username=seu_usuario

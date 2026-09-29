@@ -3,7 +3,14 @@ package com.rh.recrutamento.backend.controller;
 import tools.jackson.databind.ObjectMapper;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoUpdateRequest;
+import com.rh.recrutamento.backend.dto.curriculo.request.ExperienciaRequest;
+import com.rh.recrutamento.backend.dto.curriculo.request.FormacaoRequest;
+import com.rh.recrutamento.backend.dto.curriculo.response.ArquivoResponse;
 import com.rh.recrutamento.backend.dto.curriculo.response.CurriculoResponse;
+import com.rh.recrutamento.backend.dto.curriculo.response.ExperienciaResponse;
+import com.rh.recrutamento.backend.dto.curriculo.response.FormacaoResponse;
+import com.rh.recrutamento.backend.entity.Curriculo;
+import com.rh.recrutamento.backend.exception.ArquivoInvalidoException;
 import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
@@ -12,13 +19,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -35,27 +46,36 @@ class CurriculoControllerTest {
     @MockitoBean
     private CurriculoService curriculoService;
 
-    private final CurriculoResponse curriculoMarina = new CurriculoResponse(
-        1L, 1L, "Formacao", "Experiencias", "Competencias", "Resumo", LocalDateTime.now());
+    private final CurriculoResponse curriculoAna = new CurriculoResponse(
+        5L, 1L, LocalDate.of(1998, 4, 12), 27, Curriculo.Sexo.feminino, "Campinas", "SP",
+        "19999990000", "https://linkedin.com/in/ana", "Java, SQL", "AWS Cloud Practitioner", "Resumo",
+        List.of(new FormacaoResponse(1L, "ADS", "Fatec", LocalDate.of(2020, 2, 1), LocalDate.of(2023, 12, 15))),
+        List.of(new ExperienciaResponse(1L, "Dev Junior", "Acme", LocalDate.of(2023, 1, 10), null, true, "APIs")),
+        new ArquivoResponse(1L, "curriculo-ana.pdf", "application/pdf", 2048L, LocalDateTime.now()),
+        LocalDateTime.now());
 
     @Test
     void postDeveCriarCurriculoERetornar201() throws Exception {
-        when(curriculoService.criar(any(CurriculoRequest.class))).thenReturn(curriculoMarina);
+        when(curriculoService.criar(any(CurriculoRequest.class))).thenReturn(curriculoAna);
 
         mockMvc.perform(post("/curriculos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new CurriculoRequest(
-                    1L, "Formacao", "Experiencias", "Competencias", "Resumo"))))
+                .content(objectMapper.writeValueAsString(requestCompleto())))
             .andExpect(status().isCreated())
-            .andExpect(header().string("Location", "/curriculos/1"))
-            .andExpect(jsonPath("$.id").value(1))
-            .andExpect(jsonPath("$.usuarioId").value(1));
+            .andExpect(header().string("Location", "/curriculos/5"))
+            .andExpect(jsonPath("$.id").value(5))
+            .andExpect(jsonPath("$.usuarioId").value(1))
+            .andExpect(jsonPath("$.idade").value(27))
+            .andExpect(jsonPath("$.formacoes[0].curso").value("ADS"))
+            .andExpect(jsonPath("$.experiencias[0].trabalhoAtual").value(true))
+            .andExpect(jsonPath("$.experiencias[0].dataDemissao").doesNotExist())
+            .andExpect(jsonPath("$.arquivo.nomeOriginal").value("curriculo-ana.pdf"));
     }
 
     @Test
-    void postComUsuarioIdAusenteDeveRetornar400() throws Exception {
+    void postSemUsuarioIdDeveRetornar400() throws Exception {
         String corpo = """
-            {"formacao":"Formacao"}
+            {"cidade":"Campinas","uf":"SP"}
             """;
 
         mockMvc.perform(post("/curriculos").contentType(MediaType.APPLICATION_JSON).content(corpo))
@@ -65,35 +85,57 @@ class CurriculoControllerTest {
     }
 
     @Test
+    void postComFormacaoIncompletaDeveRetornar400() throws Exception {
+        String corpo = """
+            {"usuarioId":1,"formacoes":[{"curso":"","instituicao":"Fatec"}]}
+            """;
+
+        mockMvc.perform(post("/curriculos").contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos['formacoes[0].curso']").exists())
+            .andExpect(jsonPath("$.campos['formacoes[0].dataInicio']").exists());
+        verifyNoInteractions(curriculoService);
+    }
+
+    @Test
+    void postComUfInvalidaDeveRetornar400() throws Exception {
+        String corpo = """
+            {"usuarioId":1,"uf":"SAO"}
+            """;
+
+        mockMvc.perform(post("/curriculos").contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos.uf").exists());
+    }
+
+    @Test
     void postComCandidatoInvalidoDeveRetornar403() throws Exception {
-        when(curriculoService.criar(any(CurriculoRequest.class)))
-            .thenThrow(new CandidatoInvalidoException(2L));
+        when(curriculoService.criar(any(CurriculoRequest.class))).thenThrow(new CandidatoInvalidoException(9L));
 
         mockMvc.perform(post("/curriculos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new CurriculoRequest(2L, null, null, null, null))))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.mensagem").value("Usuario 2 nao possui perfil de candidato."));
+                .content(objectMapper.writeValueAsString(requestCompleto())))
+            .andExpect(status().isForbidden());
     }
 
     @Test
     void postComCurriculoDuplicadoDeveRetornar409() throws Exception {
-        when(curriculoService.criar(any(CurriculoRequest.class)))
-            .thenThrow(new CurriculoJaExisteException(1L));
+        when(curriculoService.criar(any(CurriculoRequest.class))).thenThrow(new CurriculoJaExisteException(1L));
 
         mockMvc.perform(post("/curriculos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new CurriculoRequest(1L, null, null, null, null))))
+                .content(objectMapper.writeValueAsString(requestCompleto())))
             .andExpect(status().isConflict());
     }
 
     @Test
     void getPorIdDeveRetornarCurriculo() throws Exception {
-        when(curriculoService.buscarPorId(1L)).thenReturn(curriculoMarina);
+        when(curriculoService.buscarPorId(5L)).thenReturn(curriculoAna);
 
-        mockMvc.perform(get("/curriculos/1"))
+        mockMvc.perform(get("/curriculos/5"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.resumo").value("Resumo"));
+            .andExpect(jsonPath("$.cidade").value("Campinas"))
+            .andExpect(jsonPath("$.certificacoes").value("AWS Cloud Practitioner"));
     }
 
     @Test
@@ -108,7 +150,7 @@ class CurriculoControllerTest {
 
     @Test
     void getPorUsuarioDeveRetornarCurriculo() throws Exception {
-        when(curriculoService.buscarPorUsuario(1L)).thenReturn(curriculoMarina);
+        when(curriculoService.buscarPorUsuario(1L)).thenReturn(curriculoAna);
 
         mockMvc.perform(get("/curriculos/usuario/1"))
             .andExpect(status().isOk())
@@ -117,25 +159,28 @@ class CurriculoControllerTest {
 
     @Test
     void getPorUsuarioInexistenteDeveRetornar404() throws Exception {
-        when(curriculoService.buscarPorUsuario(99L))
-            .thenThrow(new RecursoNaoEncontradoException("Curriculo do usuario 99 nao encontrado."));
+        when(curriculoService.buscarPorUsuario(77L))
+            .thenThrow(new RecursoNaoEncontradoException("Curriculo do usuario 77 nao encontrado."));
 
-        mockMvc.perform(get("/curriculos/usuario/99"))
+        mockMvc.perform(get("/curriculos/usuario/77"))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void putDeveAtualizarCurriculo() throws Exception {
-        CurriculoResponse atualizado = new CurriculoResponse(
-            1L, 1L, "Nova formacao", "Experiencias", "Competencias", "Resumo", LocalDateTime.now());
-        when(curriculoService.atualizar(eq(1L), any(CurriculoUpdateRequest.class))).thenReturn(atualizado);
+        when(curriculoService.atualizar(eq(5L), any(CurriculoUpdateRequest.class))).thenReturn(curriculoAna);
 
-        mockMvc.perform(put("/curriculos/1")
+        CurriculoUpdateRequest request = new CurriculoUpdateRequest(
+            LocalDate.of(1998, 4, 12), Curriculo.Sexo.feminino, "Campinas", "SP",
+            "19999990000", "https://linkedin.com/in/ana", "Java, SQL", "AWS Cloud Practitioner", "Resumo",
+            List.of(new FormacaoRequest("ADS", "Fatec", LocalDate.of(2020, 2, 1), null)),
+            List.of());
+
+        mockMvc.perform(put("/curriculos/5")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new CurriculoUpdateRequest(
-                    "Nova formacao", "Experiencias", "Competencias", "Resumo"))))
+                .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.formacao").value("Nova formacao"));
+            .andExpect(jsonPath("$.id").value(5));
     }
 
     @Test
@@ -146,7 +191,58 @@ class CurriculoControllerTest {
         mockMvc.perform(put("/curriculos/99")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CurriculoUpdateRequest(
-                    "Formacao", null, null, null))))
+                    null, null, null, null, null, null, null, null, null, List.of(), List.of()))))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void postArquivoDeveAnexarPdf() throws Exception {
+        when(curriculoService.anexarArquivo(eq(5L), any())).thenReturn(curriculoAna);
+
+        mockMvc.perform(multipart("/curriculos/5/arquivo")
+                .file(new MockMultipartFile("arquivo", "curriculo-ana.pdf", "application/pdf", "pdf".getBytes())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.arquivo.contentType").value("application/pdf"))
+            .andExpect(jsonPath("$.arquivo.tamanhoBytes").value(2048));
+    }
+
+    @Test
+    void postArquivoQueNaoEhPdfDeveRetornar400() throws Exception {
+        when(curriculoService.anexarArquivo(eq(5L), any()))
+            .thenThrow(new ArquivoInvalidoException("Somente arquivos PDF sao aceitos."));
+
+        mockMvc.perform(multipart("/curriculos/5/arquivo")
+                .file(new MockMultipartFile("arquivo", "foto.png", "image/png", "png".getBytes())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.mensagem").value("Somente arquivos PDF sao aceitos."));
+    }
+
+    @Test
+    void getArquivoDeveBaixarPdfComNomeOriginal() throws Exception {
+        when(curriculoService.baixarArquivo(5L)).thenReturn(new CurriculoService.ArquivoBaixado(
+            "curriculo-ana.pdf", "application/pdf", "pdf".getBytes()));
+
+        mockMvc.perform(get("/curriculos/5/arquivo"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+            .andExpect(header().string("Content-Disposition", containsStringIgnoringCase("curriculo-ana.pdf")))
+            .andExpect(content().bytes("pdf".getBytes()));
+    }
+
+    @Test
+    void getArquivoInexistenteDeveRetornar404() throws Exception {
+        when(curriculoService.baixarArquivo(5L))
+            .thenThrow(new RecursoNaoEncontradoException("Curriculo 5 nao possui arquivo anexado."));
+
+        mockMvc.perform(get("/curriculos/5/arquivo"))
+            .andExpect(status().isNotFound());
+    }
+
+    private CurriculoRequest requestCompleto() {
+        return new CurriculoRequest(
+            1L, LocalDate.of(1998, 4, 12), Curriculo.Sexo.feminino, "Campinas", "SP",
+            "19999990000", "https://linkedin.com/in/ana", "Java, SQL", "AWS Cloud Practitioner", "Resumo",
+            List.of(new FormacaoRequest("ADS", "Fatec", LocalDate.of(2020, 2, 1), LocalDate.of(2023, 12, 15))),
+            List.of(new ExperienciaRequest("Dev Junior", "Acme", LocalDate.of(2023, 1, 10), null, true, "APIs")));
     }
 }
