@@ -95,6 +95,39 @@ class CurriculoIntegracaoTest {
             .andExpect(content().bytes("%PDF-1.4 conteudo".getBytes()));
     }
 
+    /** Regressao: substituir o PDF violava uk_arquivo_curriculo (insert antes do delete) e virava 500. */
+    @Test
+    void deveSubstituirOPdfJaAnexadoAoCurriculo() throws Exception {
+        Long usuarioId = novoCandidato("elisa.integracao@teste.com");
+        mockMvc.perform(post("/curriculos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"usuarioId":%d}
+                    """.formatted(usuarioId)))
+            .andExpect(status().isCreated());
+        Long id = idDoCurriculoDe(usuarioId);
+
+        mockMvc.perform(multipart("/curriculos/" + id + "/arquivo")
+                .file(new MockMultipartFile("arquivo", "v1.pdf", "application/pdf", "%PDF-1.4 versao 1".getBytes())))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(multipart("/curriculos/" + id + "/arquivo")
+                .file(new MockMultipartFile("arquivo", "v2.pdf", "application/pdf", "%PDF-1.4 versao 2".getBytes())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.arquivo.nomeOriginal").value("v2.pdf"));
+
+        mockMvc.perform(get("/curriculos/" + id + "/arquivo"))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes("%PDF-1.4 versao 2".getBytes()));
+    }
+
+    /** Regressao: rota inexistente caia no handler generico e respondia 500 em vez de 404. */
+    @Test
+    void deveResponder404ParaRotaInexistente() throws Exception {
+        mockMvc.perform(get("/rota-que-nao-existe"))
+            .andExpect(status().isNotFound());
+    }
+
     @Test
     void deveRecusarArquivoQueNaoEhPdf() throws Exception {
         Long usuarioId = novoCandidato("diego.integracao@teste.com");
