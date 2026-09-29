@@ -10,7 +10,7 @@ import type {
   NewJobInput,
   NotificationItem,
 } from '@/types/domain';
-import { restPortalService } from '@/services/rest-portal-service';
+import { emptyProfile, restPortalService } from '@/services/rest-portal-service';
 
 const today = '21/08/2026';
 
@@ -24,10 +24,19 @@ const seedJobs: Job[] = [
 
 const seedProfile: CandidateProfile = {
   id: 'curriculo-marina',
-  education: 'Tecnólogo em Análise e Desenvolvimento de Sistemas - IFRS Campus Erechim (2023 - 2026, cursando)',
-  experience: 'Estágio em desenvolvimento web (2025 - atual). React, TypeScript, APIs REST, SQL e atendimento a usuários internos.',
+  dataNascimento: '2000-05-14',
+  idade: 26,
+  sexo: 'feminino',
+  cidade: 'Erechim',
+  uf: 'RS',
+  numeroContato: '54999990001',
+  perfilLinkedin: '',
   skills: ['React', 'TypeScript', 'Java', 'SQL', 'Comunicação'],
+  certificacoes: '',
   resumo: '',
+  formacoes: [{ uid: 'seed-form-1', curso: 'Análise e Desenvolvimento de Sistemas', instituicao: 'IFRS Campus Erechim', dataInicio: '2023-03-01', dataTermino: '' }],
+  experiencias: [{ uid: 'seed-exp-1', cargo: 'Estagiária de desenvolvimento web', empresa: 'Empresa Exemplo', dataContratacao: '2025-02-01', dataDemissao: '', trabalhoAtual: true, descricaoAtividades: 'React, TypeScript, APIs REST, SQL e atendimento a usuários internos.' }],
+  arquivo: null,
   updatedAt: '02/08/2026',
 };
 
@@ -72,6 +81,8 @@ export interface PortalService {
   closeJob(id: string): Promise<Job>;
   getProfile(usuarioId: string): Promise<CandidateProfile>;
   updateProfile(usuarioId: string, profile: CandidateProfile): Promise<CandidateProfile>;
+  uploadResumeFile(curriculoId: string, file: File): Promise<CandidateProfile>;
+  downloadResumeFile(curriculoId: string): Promise<Blob>;
   getApplications(): Promise<Application[]>;
   apply(jobId: string): Promise<Application>;
   getCandidates(jobId: string): Promise<Candidate[]>;
@@ -103,8 +114,21 @@ export const mockPortalService: PortalService = {
     saveStore(store);
     return delay(job);
   },
-  async getProfile() { return delay(getStore().profile); },
-  async updateProfile(_usuarioId, profile) { const store = getStore(); store.profile = profile; saveStore(store); return delay(profile); },
+  // O banco local pode ter sido gravado no formato antigo do currículo; completa o que faltar.
+  async getProfile() { return delay({ ...emptyProfile, ...getStore().profile, formacoes: getStore().profile.formacoes ?? [], experiencias: getStore().profile.experiencias ?? [] }); },
+  async updateProfile(_usuarioId, profile) {
+    const store = getStore();
+    store.profile = { ...profile, id: profile.id ?? 'curriculo-local', updatedAt: today };
+    saveStore(store);
+    return delay(store.profile);
+  },
+  async uploadResumeFile(_curriculoId, file) {
+    const store = getStore();
+    store.profile = { ...store.profile, arquivo: { id: 'arquivo-local', nomeOriginal: file.name, tamanhoBytes: file.size, enviadoEm: new Date().toISOString() } };
+    saveStore(store);
+    return delay(store.profile);
+  },
+  async downloadResumeFile() { return new Blob(['Arquivo de demonstração'], { type: 'application/pdf' }); },
   async getApplications() { return delay(getStore().applications); },
   async apply(jobId) {
     const store = getStore();
@@ -141,5 +165,7 @@ export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API ==
       closeJob: restPortalService.closeJob,
       getProfile: restPortalService.getProfile,
       updateProfile: restPortalService.updateProfile,
+      uploadResumeFile: restPortalService.uploadResumeFile,
+      downloadResumeFile: restPortalService.downloadResumeFile,
     }
   : mockPortalService;

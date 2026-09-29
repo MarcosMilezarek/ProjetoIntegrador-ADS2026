@@ -2,8 +2,20 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vagas+ | Protótipo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="TeamUp: vagas, currículo e acompanhamento de candidaturas." />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>TeamUp · Vagas e candidaturas</title>
+    <script>
+      // Aplica o tema antes da primeira pintura (preferência salva ou a do sistema).
+      (function () {
+        var pref = null;
+        try { pref = localStorage.getItem('teamup-theme'); } catch (e) {}
+        var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

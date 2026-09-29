@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T00:00:00Z",
+  "title": "Design System: TeamUp",
+  "extensions": {
+    "colorMeta": {
+      "brand": { "role": "primary", "displayName": "Verde TeamUp", "canonical": "oklch(51.1% 0.121 155.7)", "tonalRamp": ["#001300", "#00300d", "#005024", "#00713f", "#359560", "#64ba86", "#97deb0", "#c5ffd8"] },
+      "brand-glass": { "role": "primary", "displayName": "Verde Vidro", "canonical": "rgba(11, 122, 71, 0.88)", "tonalRamp": ["#001300", "#00300d", "#005024", "#00713f", "#359560", "#64ba86", "#97deb0", "#c5ffd8"] },
+      "brand-soft": { "role": "primary", "displayName": "Verde Névoa", "canonical": "rgba(11, 122, 71, 0.1)" },
+      "brand-text": { "role": "primary", "displayName": "Verde Texto", "canonical": "oklch(46.5% 0.110 155.7)", "tonalRamp": ["#001300", "#00300d", "#005025", "#136f42", "#409364", "#67b987", "#97deb0", "#c5ffd8"] },
+      "brand-text-dark": { "role": "primary", "displayName": "Verde Texto (escuro)", "canonical": "oklch(78.9% 0.141 158.0)", "tonalRamp": ["#001301", "#003010", "#005027", "#007240", "#1c9761", "#60ba89", "#94deb3", "#c3ffdb"] },
+      "glow-a": { "role": "secondary", "displayName": "Luz de Halo A", "canonical": "oklch(79.5% 0.138 159.4)", "tonalRamp": ["#001301", "#003112", "#005029", "#007242", "#149763", "#5dba8b", "#93deb5", "#c2ffdc"] },
+      "glow-b": { "role": "secondary", "displayName": "Luz de Halo B", "canonical": "oklch(66.4% 0.152 156.3)", "tonalRamp": ["#001300", "#00300e", "#005025", "#00723d", "#24975e", "#63ba87", "#96deb1", "#c4ffd9"] },
+      "glow-c": { "role": "secondary", "displayName": "Luz de Halo C", "canonical": "oklch(91.4% 0.072 160.8)", "tonalRamp": ["#001302", "#002e18", "#134b33", "#356a50", "#588e72", "#7cb396", "#a1dabb", "#c5fedf"] },
+      "tone-green": { "role": "tertiary", "displayName": "Status Verde", "canonical": "oklch(63.5% 0.144 157.9)", "tonalRamp": ["#001301", "#003010", "#005027", "#007240", "#1d9761", "#60ba89", "#94deb3", "#c3ffdb"] },
+      "tone-yellow": { "role": "tertiary", "displayName": "Status Âmbar", "canonical": "oklch(75.2% 0.156 79.6)", "tonalRamp": ["#1b0400", "#3b1b00", "#5e3600", "#835200", "#a97500", "#ca9c4a", "#ecc482", "#ffe9b3"] },
+      "tone-red": { "role": "tertiary", "displayName": "Status Vermelho", "canonical": "oklch(58.3% 0.190 28.3)", "tonalRamp": ["#230000", "#480705", "#6f211a", "#993a31", "#c35d52", "#e3887c", "#ffb3a8", "#ffdbd1"] },
+      "tone-neutral": { "role": "tertiary", "displayName": "Status Neutro", "canonical": "oklch(69.3% 0.019 158.9)", "tonalRamp": ["#050e08", "#1c2721", "#38433c", "#55615a", "#77847c", "#9ba8a0", "#c1cec6", "#e5f3ea"] },
+      "ground": { "role": "neutral", "displayName": "Branco Chão", "canonical": "#ffffff", "tonalRamp": ["#0b0b0b", "#242424", "#404040", "#5d5d5d", "#808080", "#a4a4a4", "#cacaca", "#eeeeee"] },
+      "ground-dark": { "role": "neutral", "displayName": "Verde Noite", "canonical": "oklch(16.1% 0.019 162.8)", "tonalRamp": ["#040e09", "#1c2721", "#37433d", "#54615a", "#77847d", "#9aa9a1", "#c0cfc7", "#e4f3eb"] },
+      "ink": { "role": "neutral", "displayName": "Tinta", "canonical": "oklch(20.2% 0.024 161.4)", "tonalRamp": ["#030e08", "#192820", "#35443c", "#526259", "#74857c", "#98aaa0", "#bdd0c6", "#e1f4e9"] },
+      "ink-dark": { "role": "neutral", "displayName": "Tinta (escuro)", "canonical": "oklch(94.2% 0.010 155.1)", "tonalRamp": ["#080c09", "#202522", "#3c413d", "#595f5b", "#7c827e", "#a0a6a2", "#c6ccc8", "#eaf1ec"] },
+      "ink-2": { "role": "neutral", "displayName": "Tinta Secundária", "canonical": "oklch(45.5% 0.024 163.7)", "tonalRamp": ["#030e08", "#192821", "#34443c", "#52625a", "#74857c", "#98aaa0", "#bdd0c6", "#e1f4ea"] },
+      "glass": { "role": "neutral", "displayName": "Vidro de Navegação", "canonical": "rgba(255, 255, 255, 0.3)" },
+      "glass-card": { "role": "neutral", "displayName": "Vidro de Card", "canonical": "rgba(255, 255, 255, 0.58)" },
+      "glass-solid": { "role": "neutral", "displayName": "Vidro Denso", "canonical": "rgba(255, 255, 255, 0.9)" },
+      "glass-field": { "role": "neutral", "displayName": "Vidro de Campo", "canonical": "rgba(255, 255, 255, 0.72)" },
+      "glass-edge": { "role": "neutral", "displayName": "Aresta de Vidro", "canonical": "rgba(0, 0, 0, 0.1)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Só o título da tela de entrada; 2rem no celular." },
+      "headline": { "displayName": "Headline", "purpose": "Títulos de página e de diálogo (classe .display)." },
+      "title": { "displayName": "Title", "purpose": "Títulos de linha de vaga e de painel." },
+      "body": { "displayName": "Body", "purpose": "Texto geral; prosa de vaga em 1.7 e até 68ch." },
+      "lede": { "displayName": "Lede", "purpose": "Subtítulo da tela de entrada." },
+      "label": { "displayName": "Label", "purpose": "Chips, legendas de etapas, cabeçalhos de tabela." },
+      "wordmark": { "displayName": "Palavra-marca", "purpose": "\"TeamUp\" ao lado do orbe da marca." }
+    },
+    "shadows": [
+      { "name": "glass-hi", "value": "inset 0 4px 4px rgba(255, 255, 255, 0.25)", "purpose": "Brilho interno de toda superfície de vidro (escuro: 0.04)." },
+      { "name": "glass-shadow", "value": "0 1px 2px rgba(12, 26, 19, 0.04), 0 18px 40px -22px rgba(12, 60, 35, 0.28)", "purpose": "Descola cards, painéis, navegação e barras fixas dos halos." },
+      { "name": "glass-shadow-dark", "value": "0 1px 2px rgba(0, 0, 0, 0.3), 0 20px 44px -22px rgba(0, 0, 0, 0.8)", "purpose": "Versão escura da sombra de vidro." },
+      { "name": "primary-glow", "value": "inset 0 4px 4px rgba(255, 255, 255, 0.3), 0 10px 24px -12px rgba(11, 122, 71, 0.75)", "purpose": "Botão primário de vidro verde." },
+      { "name": "floating", "value": "inset 0 4px 4px rgba(255, 255, 255, 0.25), 0 24px 60px -24px rgba(0, 0, 0, 0.45)", "purpose": "Menus, selects e diálogos sobre glass-solid." }
+    ],
+    "motion": [
+      { "name": "ease-spring", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Escala do primário, entrada do toast e da etapa atual." },
+      { "name": "duration-state", "value": "0.2s", "purpose": "Hover de fundo, cor e escala." },
+      { "name": "toast-in", "value": "0.35s ease-spring, translateY(-8px) para 0", "purpose": "Entrada do aviso." },
+      { "name": "settle", "value": "0.7s ease-spring, scale 0.6 para 1", "purpose": "Nó da etapa atual." },
+      { "name": "orb-breathe", "value": "10s ease-in-out infinite, scale 1.03", "purpose": "Respiração do orbe de entrada." },
+      { "name": "orb-spin", "value": "22s linear infinite", "purpose": "Véu cônico girando dentro do orbe." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "767px" },
+      { "name": "tablet", "value": "1000px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal: vidro verde translúcido com brilho interno; escala 1.02 no hover.",
+      "html": "<button class=\"ds-btn-primary\">Salvar currículo</button>",
+      "css": ".ds-btn-primary { min-height: 2.625rem; padding: 0 1rem; border: 0; border-radius: 12px; background: var(--brand-glass, rgba(11,122,71,0.88)); color: #fff; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 600; font-size: 0.875rem; cursor: pointer; backdrop-filter: blur(2px); box-shadow: inset 0 4px 4px rgba(255,255,255,0.3), 0 10px 24px -12px rgba(11,122,71,0.75); transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), background-color 0.2s; } .ds-btn-primary:hover { background: var(--brand, #0b7a47); transform: scale(1.02); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; }"
+    },
+    {
+      "name": "CTA de entrada",
+      "kind": "button",
+      "refersTo": "button-primary-lg",
+      "description": "Botão grande de largura total da tela de entrada, com seta em círculo branco.",
+      "html": "<button class=\"ds-cta\">Entrar<span class=\"ds-cta-arrow\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></span></button>",
+      "css": ".ds-cta { width: 100%; min-height: 3rem; display: inline-flex; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 14px; background: var(--brand-glass, rgba(11,122,71,0.88)); color: #fff; font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: inset 0 4px 4px rgba(255,255,255,0.3), 0 10px 24px -12px rgba(11,122,71,0.75); transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), background-color 0.2s; } .ds-cta:hover { background: var(--brand, #0b7a47); transform: scale(1.02); } .ds-cta:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; } .ds-cta-arrow { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: var(--brand, #0b7a47); }"
+    },
+    {
+      "name": "Botão contornado",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Ação secundária: vidro de campo com aresta e brilho interno.",
+      "html": "<button class=\"ds-btn-outline\">Cancelar</button>",
+      "css": ".ds-btn-outline { min-height: 2.625rem; padding: 0 1rem; border: 1px solid var(--glass-edge, rgba(0,0,0,0.1)); border-radius: 12px; background: var(--glass-field, rgba(255,255,255,0.72)); color: var(--ink, #0c1a13); font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 600; font-size: 0.875rem; cursor: pointer; box-shadow: inset 0 4px 4px rgba(255,255,255,0.25); transition: background-color 0.2s; } .ds-btn-outline:hover { background: var(--brand-soft, rgba(11,122,71,0.1)); } .ds-btn-outline:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de vidro com rótulo acima; anel verde no foco.",
+      "html": "<label class=\"ds-field\"><span>E-mail</span><input class=\"ds-input\" type=\"email\" placeholder=\"voce@email.com\"></label>",
+      "css": ".ds-field { display: grid; gap: 7px; font-family: 'Inter Variable', system-ui, sans-serif; } .ds-field > span { font-size: 0.875rem; font-weight: 500; color: var(--ink, #0c1a13); } .ds-input { min-height: 2.875rem; padding: 0 12px; border: 1px solid var(--line-strong, rgba(12,26,19,0.2)); border-radius: 12px; background: var(--glass-field, rgba(255,255,255,0.72)); color: var(--ink, #0c1a13); font: inherit; font-size: 1rem; caret-color: var(--brand-text, #0a6b3e); } .ds-input:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; } .ds-input[aria-invalid=\"true\"] { border-color: var(--tone-red, #d43d33); box-shadow: 0 0 0 3px rgba(212,61,51,0.22); }"
+    },
+    {
+      "name": "Chip de status",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Pílula de vidro neutra; o status vive no ponto colorido.",
+      "html": "<span class=\"ds-chip\" data-tone=\"green\">Aberta</span> <span class=\"ds-chip\" data-tone=\"yellow\">Em análise</span> <span class=\"ds-chip\" data-tone=\"red\">Encerrada</span> <span class=\"ds-chip\" data-tone=\"dashed\">Rascunho</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px 3px 9px; border: 1px solid var(--glass-edge, rgba(0,0,0,0.1)); border-radius: 99px; background: var(--glass-field, rgba(255,255,255,0.72)); color: var(--ink, #0c1a13); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 500; line-height: 1.35; white-space: nowrap; } .ds-chip::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: var(--tone-neutral, #93a098); } .ds-chip[data-tone=\"green\"]::before { background: var(--tone-green, #17a468); box-shadow: 0 0 0 3px rgba(23,164,104,0.2); } .ds-chip[data-tone=\"yellow\"]::before { background: var(--tone-yellow, #e2a100); } .ds-chip[data-tone=\"red\"]::before { background: var(--tone-red, #d43d33); } .ds-chip[data-tone=\"dashed\"]::before { background: transparent; border: 1.5px dashed var(--ink-2, #4b5b53); }"
+    },
+    {
+      "name": "Painel de vidro",
+      "kind": "card",
+      "refersTo": "glass-card",
+      "description": "Card e painel padrão: vidro translúcido, aresta 1px, brilho e sombra longa.",
+      "html": "<article class=\"ds-card\"><h3>Desenvolvedor(a) Back-end Java</h3><p>Híbrido · CLT</p></article>",
+      "css": ".ds-card { padding: 22px 24px; border: 1px solid var(--glass-edge, rgba(0,0,0,0.1)); border-radius: 18px; background: var(--glass-card, rgba(255,255,255,0.58)); color: var(--ink, #0c1a13); font-family: 'Inter Variable', system-ui, sans-serif; box-shadow: inset 0 4px 4px rgba(255,255,255,0.25), 0 1px 2px rgba(12,26,19,0.04), 0 18px 40px -22px rgba(12,60,35,0.28); backdrop-filter: blur(28px) saturate(1.4); } .ds-card h3 { margin: 0; font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; } .ds-card p { margin: 4px 0 0; color: var(--ink-2, #4b5b53); font-size: 0.9375rem; }"
+    },
+    {
+      "name": "Navegação de vidro",
+      "kind": "nav",
+      "refersTo": "glass-nav",
+      "description": "Cápsula flutuante centralizada com marca, links e ativo em verde névoa.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-brand\"><span class=\"ds-orb\"></span>TeamUp</span><span class=\"ds-links\"><a aria-current=\"page\" href=\"#\">Vagas</a><a href=\"#\">Candidaturas</a><a href=\"#\">Currículo</a></span></nav>",
+      "css": ".ds-nav { width: fit-content; display: flex; align-items: center; gap: 28px; padding: 8px 8px 8px 18px; border: 1px solid var(--glass-edge, rgba(0,0,0,0.1)); border-radius: 16px; background: var(--glass, rgba(255,255,255,0.3)); font-family: 'Inter Variable', system-ui, sans-serif; box-shadow: inset 0 4px 4px rgba(255,255,255,0.25), 0 1px 2px rgba(12,26,19,0.04), 0 18px 40px -22px rgba(12,60,35,0.28); backdrop-filter: blur(50px) saturate(1.6); } .ds-brand { display: inline-flex; align-items: center; gap: 10px; font-family: 'Fustat Variable', 'Inter Variable', sans-serif; font-weight: 700; font-size: 1.3125rem; letter-spacing: -0.03em; color: var(--ink, #0c1a13); } .ds-orb { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #e9fff2 0 10%, #6fe0a5 26%, #17a45f 58%, #075231 100%); box-shadow: inset -3px -4px 8px rgba(0,40,20,0.45), 0 4px 12px -4px rgba(23,164,95,0.7); } .ds-links { display: flex; gap: 2px; } .ds-links a { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 14px; border-radius: 10px; color: var(--ink-2, #4b5b53); font-weight: 500; text-decoration: none; transition: background-color 0.2s, color 0.2s; } .ds-links a:hover { color: var(--ink, #0c1a13); background: rgba(12,26,19,0.05); } .ds-links a[aria-current=\"page\"] { color: var(--brand-text, #0a6b3e); background: var(--brand-soft, rgba(11,122,71,0.1)); font-weight: 600; } .ds-links a:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; }"
+    },
+    {
+      "name": "Controle segmentado",
+      "kind": "custom",
+      "refersTo": "segmented-active",
+      "description": "Filtros e alternador de tema: trilho de vidro, segmento ativo em vidro verde.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">Abertas 3</button><button aria-pressed=\"false\">Rascunhos 1</button><button aria-pressed=\"false\">Todas 5</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 4px; border: 1px solid var(--glass-edge, rgba(0,0,0,0.1)); border-radius: 14px; background: var(--glass-card, rgba(255,255,255,0.58)); box-shadow: inset 0 4px 4px rgba(255,255,255,0.25); backdrop-filter: blur(28px) saturate(1.4); } .ds-seg button { min-height: 2.25rem; padding: 0 14px; border: 0; border-radius: 10px; background: none; color: var(--ink-2, #4b5b53); font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 500; cursor: pointer; transition: background-color 0.2s, color 0.2s; } .ds-seg button:hover { color: var(--ink, #0c1a13); } .ds-seg button[aria-pressed=\"true\"] { background: var(--brand-glass, rgba(11,122,71,0.88)); color: #fff; box-shadow: inset 0 3px 3px rgba(255,255,255,0.28); } .ds-seg button:focus-visible { outline: 2px solid var(--focus, #17a468); outline-offset: 2px; }"
+    },
+    {
+      "name": "Etapas da candidatura",
+      "kind": "custom",
+      "description": "Quatro nós ligados por trilho; concluídos e atual em vidro verde, atual com anel.",
+      "html": "<ol class=\"ds-stages\"><li class=\"done\"><span class=\"n\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>Inscrito</span></li><li class=\"current\"><span class=\"n\">2</span><span>Em análise</span></li><li><span class=\"n\">3</span><span>Entrevista</span></li><li><span class=\"n\">4</span><span>Resultado</span></li></ol>",
+      "css": ".ds-stages { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); margin: 0; padding: 0; list-style: none; font-family: 'Inter Variable', system-ui, sans-serif; } .ds-stages li { position: relative; display: grid; justify-items: center; gap: 8px; font-size: 0.8125rem; color: var(--ink-2, #4b5b53); } .ds-stages li + li::before { content: \"\"; position: absolute; top: 13px; left: calc(-50% + 16px); right: calc(50% + 16px); height: 2px; border-radius: 2px; background: var(--line-strong, rgba(12,26,19,0.2)); } .ds-stages li.done + li::before, .ds-stages li.current::before { background: var(--tone-green, #17a468); } .ds-stages .n { width: 28px; height: 28px; display: grid; place-items: center; border: 1.5px solid var(--line-strong, rgba(12,26,19,0.2)); border-radius: 50%; background: var(--glass-field, rgba(255,255,255,0.72)); font-weight: 600; } .ds-stages li.done .n, .ds-stages li.current .n { border-color: transparent; background: var(--brand-glass, rgba(11,122,71,0.88)); color: #fff; box-shadow: inset 0 3px 3px rgba(255,255,255,0.3); } .ds-stages li.current { color: var(--ink, #0c1a13); font-weight: 600; } .ds-stages li.current .n { box-shadow: inset 0 3px 3px rgba(255,255,255,0.3), 0 0 0 5px var(--brand-soft, rgba(11,122,71,0.1)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Vidro sobre luz verde",
+    "overview": "TeamUp é um portal de RH claro e leve: superfícies translúcidas, com um brilho interno no topo, flutuam sobre um fundo branco puro (ou verde quase preto no tema escuro) iluminado por halos verdes desfocados que nascem no canto superior esquerdo. O verde não pinta blocos; ele é a luz que atravessa o vidro. A densidade é de ferramenta, não de vitrine: listas, tabelas e formulários vivem dentro de painéis de vidro com respiro generoso, e a única peça teatral do sistema é o orbe verde de vidro na tela de entrada.\n\nO sistema recusa o SaaS cinza de barra lateral com cards opacos: a navegação é uma cápsula de vidro flutuante e centralizada, e no celular vira barra superior mais barra de abas inferior, ambas de vidro. Os dois temas são cidadãos de primeira classe; o padrão segue o sistema operacional e a escolha é aplicada antes da primeira pintura.",
+    "keyCharacteristics": [
+      "Fundo liso (branco ou verde quase preto) com quatro halos verdes desfocados fixos atrás de tudo.",
+      "Toda superfície elevada é vidro: preenchimento translúcido, `backdrop-filter` forte, contorno de 1px e brilho interno.",
+      "Verde como luz e como estado: preenchimento translúcido no primário, tom suave no ativo, ponto colorido nos status.",
+      "Títulos em Fustat Bold com tracking negativo; todo o resto em Inter.",
+      "Movimento curto e com mola (`cubic-bezier(0.16, 1, 0.3, 1)`); o orbe respira e gira devagar; tudo respeita `prefers-reduced-motion`."
+    ],
+    "rules": [
+      { "name": "The Luz, Não Tinta Rule", "body": "O verde entra como luz translúcida (`brand-glass`, `brand-soft`, halos), não como bloco opaco. Grandes áreas verdes sólidas só existem no orbe da entrada.", "section": "colors" },
+      { "name": "The Ponto de Status Rule", "body": "Status se comunica com um ponto colorido de 7px dentro de uma pílula de vidro neutra, nunca pintando a pílula inteira; o texto do status continua em `ink`.", "section": "colors" },
+      { "name": "The Pares de Tema Rule", "body": "Toda cor nova nasce com par claro e escuro no mesmo nome de variável; nada de cor literal em componente.", "section": "colors" },
+      { "name": "The Fustat Só Em Título Rule", "body": "Fustat aparece apenas em títulos de página e diálogo, na palavra-marca, nas iniciais do avatar e em números de destaque (`doc-summary`). Texto corrido, botões e rótulos ficam em Inter.", "section": "typography" },
+      { "name": "The Números Tabulares Rule", "body": "Contadores, datas e percentuais usam `font-variant-numeric: tabular-nums`.", "section": "typography" },
+      { "name": "The Quatro Vidros Rule", "body": "`glass` (0.3) só para navegação e barra de abas; `glass-card` (0.58) para cards e painéis; `glass-solid` (0.9) para o que precisa ler sobre qualquer coisa: menus, diálogos, barra de salvar; `glass-field` (0.72) para campos e controles internos. Não invente uma quinta opacidade.", "section": "elevation" },
+      { "name": "The Halo Atrás De Tudo Rule", "body": "Os halos são `position: fixed` com `z-index: -1` e `pointer-events: none`; nunca ficam sobre o conteúdo nem se movem com rolagem.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** montar toda superfície elevada com os quatro ingredientes: preenchimento `glass-*`, `backdrop-filter` com blur, contorno 1px `glass-edge` e o brilho interno `--glass-hi`.",
+      "**Do** usar `brand-glass` com texto branco e brilho interno para o que está selecionado ou é a ação principal, e `brand-soft` com `brand-text` para o ativo discreto.",
+      "**Do** comunicar status com o chip de ponto colorido e as etapas com o componente de quatro nós.",
+      "**Do** definir toda cor nova como variável com par em `:root` e `.dark`.",
+      "**Do** usar `cubic-bezier(0.16, 1, 0.3, 1)` em transições de 0.2s a 0.35s e desligar escala e animação em `prefers-reduced-motion`.",
+      "**Do** marcar áreas de demonstração com o ponto tracejado (`demo-note`, chip `dashed`)."
+    ],
+    "donts": [
+      "**Don't** usar barra lateral fixa nem cards opacos de SaaS cinza; a navegação é a cápsula de vidro flutuante.",
+      "**Don't** usar os halos ou o orbe como decoração de páginas internas; halos ficam no fundo, o orbe fica na entrada.",
+      "**Don't** pintar pílulas de status inteiras de cor; a cor vive no ponto.",
+      "**Don't** usar Fustat em texto corrido, botões ou rótulos.",
+      "**Don't** pôr texto branco pequeno sobre `tone-green` ou `tone-green-dark`; o contraste não passa (cerca de 3.2:1 no claro).",
+      "**Don't** criar opacidades de vidro fora das quatro definidas nem cores literais em componentes."
+    ]
+  }
+}

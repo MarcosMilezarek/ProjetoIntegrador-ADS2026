@@ -16,12 +16,51 @@ export type Job = {
   requirements: string[];
 };
 
+export type Sexo = 'feminino' | 'masculino' | 'outro' | 'nao_informado';
+
+/** Experiência profissional. Datas em `YYYY-MM-DD`; '' = vazio. `uid` só existe no cliente (chave de lista). */
+export type ResumeExperience = {
+  uid: string;
+  cargo: string;
+  empresa: string;
+  dataContratacao: string;
+  dataDemissao: string;
+  trabalhoAtual: boolean;
+  descricaoAtividades: string;
+};
+
+export type ResumeEducation = {
+  uid: string;
+  curso: string;
+  instituicao: string;
+  dataInicio: string;
+  /** '' = curso em andamento. */
+  dataTermino: string;
+};
+
+export type ResumeFile = {
+  id: string;
+  nomeOriginal: string;
+  tamanhoBytes: number;
+  enviadoEm: string;
+};
+
 export type CandidateProfile = {
   id?: string;
-  education: string;
-  experience: string;
+  dataNascimento: string;
+  /** Calculada pela API; nunca é enviada. */
+  idade?: number;
+  sexo: Sexo | '';
+  cidade: string;
+  uf: string;
+  numeroContato: string;
+  perfilLinkedin: string;
   skills: string[];
+  certificacoes: string;
   resumo: string;
+  formacoes: ResumeEducation[];
+  experiencias: ResumeExperience[];
+  arquivo?: ResumeFile | null;
   updatedAt?: string;
 };
 

@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
-import type { CandidateProfile, Job, JobStatus, NewJobInput } from '@/types/domain';
+import type { CandidateProfile, Job, JobStatus, NewJobInput, Sexo } from '@/types/domain';
 
 /** Formato bruto retornado por /vagas (VagaResponse do backend). */
 interface VagaResponseDTO {
@@ -22,10 +22,21 @@ interface VagaResponseDTO {
 interface CurriculoResponseDTO {
   id: number;
   usuarioId: number;
-  formacao: string | null;
-  experiencias: string | null;
+  dataNascimento: string | null;
+  idade: number | null;
+  sexo: string | null;
+  cidade: string | null;
+  uf: string | null;
+  numeroContato: string | null;
+  perfilLinkedin: string | null;
   competencias: string | null;
+  certificacoes: string | null;
   resumo: string | null;
+  formacoes: { id: number; curso: string; instituicao: string; dataInicio: string; dataTermino: string | null }[] | null;
+  experiencias:
+    | { id: number; cargo: string; empresa: string; dataContratacao: string; dataDemissao: string | null; trabalhoAtual: boolean; descricaoAtividades: string | null }[]
+    | null;
+  arquivo: { id: number; nomeOriginal: string; contentType: string; tamanhoBytes: number; enviadoEm: string } | null;
   atualizadoEm: string;
 }
 
@@ -62,18 +73,79 @@ function vagaBody(input: NewJobInput & { status: JobStatus }) {
   };
 }
 
+const sexos: Sexo[] = ['feminino', 'masculino', 'outro', 'nao_informado'];
+
 function profileFromResponse(curriculo: CurriculoResponseDTO): CandidateProfile {
   return {
     id: String(curriculo.id),
-    education: curriculo.formacao ?? '',
-    experience: curriculo.experiencias ?? '',
+    dataNascimento: curriculo.dataNascimento ?? '',
+    idade: curriculo.idade ?? undefined,
+    sexo: sexos.find((item) => item === curriculo.sexo) ?? '',
+    cidade: curriculo.cidade ?? '',
+    uf: curriculo.uf ?? '',
+    numeroContato: curriculo.numeroContato ?? '',
+    perfilLinkedin: curriculo.perfilLinkedin ?? '',
     skills: curriculo.competencias ? curriculo.competencias.split(',').map((item) => item.trim()).filter(Boolean) : [],
+    certificacoes: curriculo.certificacoes ?? '',
     resumo: curriculo.resumo ?? '',
+    formacoes: (curriculo.formacoes ?? []).map((item) => ({
+      uid: crypto.randomUUID(),
+      curso: item.curso,
+      instituicao: item.instituicao,
+      dataInicio: item.dataInicio,
+      dataTermino: item.dataTermino ?? '',
+    })),
+    experiencias: (curriculo.experiencias ?? []).map((item) => ({
+      uid: crypto.randomUUID(),
+      cargo: item.cargo,
+      empresa: item.empresa,
+      dataContratacao: item.dataContratacao,
+      dataDemissao: item.dataDemissao ?? '',
+      trabalhoAtual: item.trabalhoAtual,
+      descricaoAtividades: item.descricaoAtividades ?? '',
+    })),
+    arquivo: curriculo.arquivo
+      ? { id: String(curriculo.arquivo.id), nomeOriginal: curriculo.arquivo.nomeOriginal, tamanhoBytes: curriculo.arquivo.tamanhoBytes, enviadoEm: curriculo.arquivo.enviadoEm }
+      : null,
     updatedAt: formatDate(curriculo.atualizadoEm),
   };
 }
 
-const emptyProfile: CandidateProfile = { education: '', experience: '', skills: [], resumo: '' };
+export const emptyProfile: CandidateProfile = {
+  dataNascimento: '', sexo: '', cidade: '', uf: '', numeroContato: '', perfilLinkedin: '',
+  skills: [], certificacoes: '', resumo: '', formacoes: [], experiencias: [], arquivo: null,
+};
+
+const orNull = (value: string) => (value.trim() ? value.trim() : null);
+
+/** Corpo do POST/PUT. `idade` e os ids dos itens não são enviados; as listas vão sempre completas (o PUT as substitui). */
+function curriculoBody(profile: CandidateProfile) {
+  return {
+    dataNascimento: orNull(profile.dataNascimento),
+    sexo: profile.sexo || null,
+    cidade: orNull(profile.cidade),
+    uf: orNull(profile.uf)?.toUpperCase() ?? null,
+    numeroContato: orNull(profile.numeroContato),
+    perfilLinkedin: orNull(profile.perfilLinkedin),
+    competencias: profile.skills.join(', '),
+    certificacoes: orNull(profile.certificacoes),
+    resumo: profile.resumo,
+    formacoes: profile.formacoes.map((item) => ({
+      curso: item.curso.trim(),
+      instituicao: item.instituicao.trim(),
+      dataInicio: orNull(item.dataInicio),
+      dataTermino: orNull(item.dataTermino),
+    })),
+    experiencias: profile.experiencias.map((item) => ({
+      cargo: item.cargo.trim(),
+      empresa: item.empresa.trim(),
+      dataContratacao: orNull(item.dataContratacao),
+      dataDemissao: item.trabalhoAtual ? null : orNull(item.dataDemissao),
+      trabalhoAtual: item.trabalhoAtual,
+      descricaoAtividades: orNull(item.descricaoAtividades),
+    })),
+  };
+}
 
 export const restPortalService = {
   getJobs: async () => (await apiClient<VagaResponseDTO[]>('/vagas')).map(jobFromResponse),
@@ -109,10 +181,19 @@ export const restPortalService = {
   },
 
   updateProfile: async (usuarioId: string, profile: CandidateProfile) => {
-    const dadosCurriculo = { formacao: profile.education, experiencias: profile.experience, competencias: profile.skills.join(', '), resumo: profile.resumo };
+    const dadosCurriculo = curriculoBody(profile);
     const curriculo = profile.id
       ? await apiClient<CurriculoResponseDTO>(`/curriculos/${profile.id}`, { method: 'PUT', body: JSON.stringify(dadosCurriculo) })
       : await apiClient<CurriculoResponseDTO>('/curriculos', { method: 'POST', body: JSON.stringify({ usuarioId: Number(usuarioId), ...dadosCurriculo }) });
     return profileFromResponse(curriculo);
   },
+
+  /** Anexa (ou substitui) o PDF do currículo; devolve o currículo completo com o bloco `arquivo`. */
+  uploadResumeFile: async (curriculoId: string, file: File) => {
+    const body = new FormData();
+    body.append('arquivo', file);
+    return profileFromResponse(await apiClient<CurriculoResponseDTO>(`/curriculos/${curriculoId}/arquivo`, { method: 'POST', body }));
+  },
+
+  downloadResumeFile: (curriculoId: string) => apiClient<Blob>(`/curriculos/${curriculoId}/arquivo`, {}, { as: 'blob' }),
 };
