@@ -12,6 +12,7 @@ import com.rh.recrutamento.backend.entity.CurriculoExperiencia;
 import com.rh.recrutamento.backend.entity.CurriculoFormacao;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.AcessoNegadoException;
+import com.rh.recrutamento.backend.exception.ArquivoInvalidoException;
 import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
@@ -30,14 +31,16 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class CurriculoService {
 
+    private static final String PASTA_ARQUIVOS = "curriculo";
+
     private final CurriculoRepository curriculoRepository;
     private final UsuarioRepository usuarioRepository;
     private final CurriculoMapper curriculoMapper;
-    private final ArquivoCurriculoStorage arquivoStorage;
+    private final ArquivoStorage arquivoStorage;
     private final CandidaturaRepository candidaturaRepository;
 
     public CurriculoService(CurriculoRepository curriculoRepository, UsuarioRepository usuarioRepository,
-                             CurriculoMapper curriculoMapper, ArquivoCurriculoStorage arquivoStorage,
+                             CurriculoMapper curriculoMapper, ArquivoStorage arquivoStorage,
                              CandidaturaRepository candidaturaRepository) {
         this.curriculoRepository = curriculoRepository;
         this.usuarioRepository = usuarioRepository;
@@ -117,13 +120,16 @@ public class CurriculoService {
         // definirArquivo atualiza a entidade existente no lugar, entao o nome antigo precisa ser lido antes.
         String nomeAnterior = anterior != null ? anterior.getNomeArmazenado() : null;
 
-        String nomeArmazenado = arquivoStorage.salvar(arquivo);
+        if (!"application/pdf".equalsIgnoreCase(arquivo.getContentType())) {
+            throw new ArquivoInvalidoException("Somente arquivos PDF sao aceitos.");
+        }
+        String nomeArmazenado = arquivoStorage.salvar(PASTA_ARQUIVOS, arquivo, "pdf");
         curriculo.definirArquivo(new CurriculoArquivo(
             arquivo.getOriginalFilename(), nomeArmazenado, arquivo.getContentType(), arquivo.getSize()));
 
         Curriculo salvo = curriculoRepository.save(curriculo);
         if (nomeAnterior != null) {
-            arquivoStorage.remover(nomeAnterior);
+            arquivoStorage.remover(PASTA_ARQUIVOS, nomeAnterior);
         }
         return curriculoMapper.toResponse(salvo);
     }
@@ -136,7 +142,7 @@ public class CurriculoService {
             throw new RecursoNaoEncontradoException("Curriculo " + id + " nao possui arquivo anexado.");
         }
         return new ArquivoBaixado(arquivo.getNomeOriginal(), arquivo.getContentType(),
-            arquivoStorage.ler(arquivo.getNomeArmazenado()));
+            arquivoStorage.ler(PASTA_ARQUIVOS, arquivo.getNomeArmazenado()));
     }
 
     /** So o proprio candidato altera o curriculo. */

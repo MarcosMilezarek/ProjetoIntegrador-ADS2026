@@ -12,6 +12,7 @@ import com.rh.recrutamento.backend.entity.CurriculoExperiencia;
 import com.rh.recrutamento.backend.entity.CurriculoFormacao;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.exception.AcessoNegadoException;
+import com.rh.recrutamento.backend.exception.ArquivoInvalidoException;
 import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,7 +49,7 @@ class CurriculoServiceTest {
     private UsuarioRepository usuarioRepository;
 
     @Mock
-    private ArquivoCurriculoStorage arquivoStorage;
+    private ArquivoStorage arquivoStorage;
 
     @Mock
     private CandidaturaRepository candidaturaRepository;
@@ -232,7 +234,7 @@ class CurriculoServiceTest {
         Curriculo curriculo = curriculoDe(5L, candidato(1L));
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculo));
         when(curriculoRepository.save(any(Curriculo.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(arquivoStorage.salvar(any())).thenReturn("gerado.pdf");
+        when(arquivoStorage.salvar(eq("curriculo"), any(), eq("pdf"))).thenReturn("gerado.pdf");
 
         MockMultipartFile pdf = new MockMultipartFile(
             "arquivo", "curriculo-ana.pdf", "application/pdf", "conteudo".getBytes());
@@ -245,7 +247,7 @@ class CurriculoServiceTest {
         assertThat(arquivo.getTamanhoBytes()).isEqualTo(8L);
         assertThat(arquivo.getCurriculo()).isSameAs(curriculo);
         assertThat(resposta.arquivo().nomeOriginal()).isEqualTo("curriculo-ana.pdf");
-        verify(arquivoStorage, never()).remover(any());
+        verify(arquivoStorage, never()).remover(any(), any());
     }
 
     @Test
@@ -254,13 +256,24 @@ class CurriculoServiceTest {
         curriculo.definirArquivo(new CurriculoArquivo("antigo.pdf", "antigo-gerado.pdf", "application/pdf", 10L));
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculo));
         when(curriculoRepository.save(any(Curriculo.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(arquivoStorage.salvar(any())).thenReturn("novo-gerado.pdf");
+        when(arquivoStorage.salvar(eq("curriculo"), any(), eq("pdf"))).thenReturn("novo-gerado.pdf");
 
         curriculoService.anexarArquivo(5L, new MockMultipartFile(
             "arquivo", "novo.pdf", "application/pdf", "novo".getBytes()), candidatoLogado(1L));
 
         assertThat(curriculo.getArquivo().getNomeArmazenado()).isEqualTo("novo-gerado.pdf");
-        verify(arquivoStorage).remover("antigo-gerado.pdf");
+        verify(arquivoStorage).remover("curriculo", "antigo-gerado.pdf");
+    }
+
+    @Test
+    void anexarArquivoQueNaoEhPdfDeveSerRecusadoSemGravar() {
+        when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
+
+        assertThatThrownBy(() -> curriculoService.anexarArquivo(5L, new MockMultipartFile(
+            "arquivo", "foto.png", "image/png", "png".getBytes()), candidatoLogado(1L)))
+            .isInstanceOf(ArquivoInvalidoException.class)
+            .hasMessage("Somente arquivos PDF sao aceitos.");
+        verify(arquivoStorage, never()).salvar(any(), any(), any());
     }
 
     @Test
@@ -277,7 +290,7 @@ class CurriculoServiceTest {
         Curriculo curriculo = curriculoDe(5L, candidato(1L));
         curriculo.definirArquivo(new CurriculoArquivo("ana.pdf", "gerado.pdf", "application/pdf", 4L));
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculo));
-        when(arquivoStorage.ler("gerado.pdf")).thenReturn("pdf!".getBytes());
+        when(arquivoStorage.ler("curriculo", "gerado.pdf")).thenReturn("pdf!".getBytes());
 
         CurriculoService.ArquivoBaixado baixado = curriculoService.baixarArquivo(5L, candidatoLogado(1L));
 
@@ -303,7 +316,7 @@ class CurriculoServiceTest {
         assertThatThrownBy(() -> curriculoService.anexarArquivo(5L, new MockMultipartFile(
             "arquivo", "x.pdf", "application/pdf", "x".getBytes()), candidatoLogado(2L)))
             .isInstanceOf(AcessoNegadoException.class);
-        verify(arquivoStorage, never()).salvar(any());
+        verify(arquivoStorage, never()).salvar(any(), any(), any());
     }
 
     @Test
