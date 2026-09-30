@@ -16,6 +16,7 @@ import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.mapper.CurriculoMapperImpl;
+import com.rh.recrutamento.backend.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.repository.CurriculoRepository;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,12 +49,15 @@ class CurriculoServiceTest {
     @Mock
     private ArquivoCurriculoStorage arquivoStorage;
 
+    @Mock
+    private CandidaturaRepository candidaturaRepository;
+
     private CurriculoService curriculoService;
 
     @BeforeEach
     void montarService() {
         curriculoService = new CurriculoService(
-            curriculoRepository, usuarioRepository, new CurriculoMapperImpl(), arquivoStorage);
+            curriculoRepository, usuarioRepository, new CurriculoMapperImpl(), arquivoStorage, candidaturaRepository);
     }
 
     @Test
@@ -315,6 +319,23 @@ class CurriculoServiceTest {
 
         assertThat(curriculoService.buscarPorId(5L, new UsuarioLogado(9L, Usuario.Perfil.administrador)).id())
             .isEqualTo(5L);
+    }
+
+    @Test
+    void rhLeCurriculoDeQuemSeInscreveuEmVagaDele() {
+        when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
+        when(candidaturaRepository.existsByCandidato_IdAndVaga_Rh_Id(1L, 7L)).thenReturn(true);
+
+        assertThat(curriculoService.buscarPorId(5L, new UsuarioLogado(7L, Usuario.Perfil.rh)).id()).isEqualTo(5L);
+    }
+
+    @Test
+    void rhNaoLeCurriculoDeQuemNaoSeInscreveuEmVagaDele() {
+        when(candidaturaRepository.existsByCandidato_IdAndVaga_Rh_Id(1L, 8L)).thenReturn(false);
+
+        assertThatThrownBy(() -> curriculoService.buscarPorUsuario(1L, new UsuarioLogado(8L, Usuario.Perfil.rh)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(curriculoRepository, never()).findByUsuario_Id(any());
     }
 
     private UsuarioLogado candidatoLogado(Long id) {

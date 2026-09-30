@@ -95,6 +95,12 @@ public class SegurancaConfig {
                 .requestMatchers(HttpMethod.POST, "/vagas").hasAnyRole(RH, ADMINISTRADOR)
                 .requestMatchers(HttpMethod.PUT, "/vagas/*").hasAnyRole(RH, ADMINISTRADOR)
 
+                // candidaturas: o candidato se inscreve e acompanha as proprias; o RH gerencia as das suas vagas
+                .requestMatchers(HttpMethod.POST, "/candidaturas").hasRole(CANDIDATO)
+                .requestMatchers(HttpMethod.GET, "/candidaturas/minhas").hasRole(CANDIDATO)
+                .requestMatchers(HttpMethod.GET, "/vagas/*/candidaturas").hasAnyRole(RH, ADMINISTRADOR)
+                .requestMatchers(HttpMethod.PUT, "/candidaturas/*/status").hasAnyRole(RH, ADMINISTRADOR)
+
                 // curriculo: so o proprio candidato escreve
                 .requestMatchers(HttpMethod.POST, "/curriculos", "/curriculos/*/arquivo").hasRole(CANDIDATO)
                 .requestMatchers(HttpMethod.PUT, "/curriculos/*").hasRole(CANDIDATO)
