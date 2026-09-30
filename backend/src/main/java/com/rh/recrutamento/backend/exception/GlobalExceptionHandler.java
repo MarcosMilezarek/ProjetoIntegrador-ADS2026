@@ -3,6 +3,7 @@ package com.rh.recrutamento.backend.exception;
 import com.rh.recrutamento.backend.dto.comum.ErroResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -60,6 +61,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CurriculoJaExisteException.class)
     public ResponseEntity<ErroResponse> tratarCurriculoDuplicado(CurriculoJaExisteException ex) {
         return construir(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(CandidaturaNaoPermitidaException.class)
+    public ResponseEntity<ErroResponse> tratarCandidaturaNaoPermitida(CandidaturaNaoPermitidaException ex) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Ex.: excluir usuario que ainda tem vagas ou candidaturas (FK RESTRICT). Antes virava 500. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErroResponse> tratarViolacaoDeIntegridade(DataIntegrityViolationException ex) {
+        return construir(HttpStatus.CONFLICT,
+            "A operação conflita com registros vinculados. Para desativar um usuário, altere o status em vez de excluir.");
     }
 
     @ExceptionHandler(ArquivoInvalidoException.class)

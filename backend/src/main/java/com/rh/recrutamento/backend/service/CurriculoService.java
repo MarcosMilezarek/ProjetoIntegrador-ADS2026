@@ -16,6 +16,7 @@ import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.mapper.CurriculoMapper;
+import com.rh.recrutamento.backend.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.repository.CurriculoRepository;
 import com.rh.recrutamento.backend.repository.UsuarioRepository;
 import org.springframework.stereotype.Service;
@@ -33,13 +34,16 @@ public class CurriculoService {
     private final UsuarioRepository usuarioRepository;
     private final CurriculoMapper curriculoMapper;
     private final ArquivoCurriculoStorage arquivoStorage;
+    private final CandidaturaRepository candidaturaRepository;
 
     public CurriculoService(CurriculoRepository curriculoRepository, UsuarioRepository usuarioRepository,
-                             CurriculoMapper curriculoMapper, ArquivoCurriculoStorage arquivoStorage) {
+                             CurriculoMapper curriculoMapper, ArquivoCurriculoStorage arquivoStorage,
+                             CandidaturaRepository candidaturaRepository) {
         this.curriculoRepository = curriculoRepository;
         this.usuarioRepository = usuarioRepository;
         this.curriculoMapper = curriculoMapper;
         this.arquivoStorage = arquivoStorage;
+        this.candidaturaRepository = candidaturaRepository;
     }
 
     @Transactional
@@ -142,9 +146,14 @@ public class CurriculoService {
         }
     }
 
-    /** Leem o curriculo: o proprio candidato e o administrador. */
+    /** Leem o curriculo: o proprio candidato, o administrador e o RH de uma vaga em que o candidato se inscreveu (RF12/RN07). */
     private void verificarLeitura(Long donoId, UsuarioLogado logado) {
-        if (!donoId.equals(logado.id()) && !logado.ehAdministrador()) {
+        boolean permitido = switch (logado.perfil()) {
+            case candidato -> donoId.equals(logado.id());
+            case rh -> candidaturaRepository.existsByCandidato_IdAndVaga_Rh_Id(donoId, logado.id());
+            case administrador -> true;
+        };
+        if (!permitido) {
             throw new AcessoNegadoException("Você não tem acesso a este currículo.");
         }
     }
