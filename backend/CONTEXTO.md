@@ -2,7 +2,7 @@
 
 > Histórico do que já foi desenvolvido e em que etapa o backend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
-> precisar reconstruir o contexto do zero. Última atualização: 2026-09-29.
+> precisar reconstruir o contexto do zero. Última atualização: 2026-09-30.
 
 ## Stack
 
@@ -11,36 +11,81 @@
 - MySQL local na VPS (ver "Infraestrutura / Deploy" abaixo) em produção, H2 em memória nos testes
 - Flyway para migrations (`src/main/resources/db/migration`)
 - MapStruct para conversão entity → DTO
-- Lombok (`@Getter`) + `spring-security-crypto` só para o `BCryptPasswordEncoder` (não há Spring Security completo)
+- Lombok (`@Getter`)
+- Spring Security como resource server OAuth2: JWT HS256 emitido pelo próprio backend (Nimbus); senha com BCrypt
 
 ## Padrão arquitetural (seguir em toda feature nova)
 
-É um monólito modular, não microserviços físicos (ver `modelagem/arquitetura.md`). Cada feature segue
-a mesma cadeia de camadas:
+É um monólito modular, não microserviços físicos (ver `modelagem/arquitetura.md`). Desde 2026-09-30 os
+pacotes são organizados **por domínio, com as camadas dentro de cada domínio**:
 
 ```
-entity → repository → dto/<feature>/{request,response} → mapper (MapStruct) → service → controller
+com.rh.recrutamento.backend
+  auth/         login, JWT, SegurancaConfig (regras por papel), UsuarioLogado
+  usuario/      contas de acesso e Configurações (gestão de usuários pelo administrador)
+  vaga/         vagas
+  curriculo/    dados do candidato (currículo, formação, experiência, PDF)
+  candidatura/  inscrição em vaga, etapas do processo seletivo e histórico
+  documento/    documentos de contratação
+  comum/        erros (GlobalExceptionHandler), CORS, armazenamento de arquivos em disco
+```
+
+Dentro de cada domínio, a mesma cadeia de camadas (ex.: `usuario/controller/UsuarioController.java`):
+
+```
+entity → repository → dto/{request,response} → mapper (MapStruct) → service → controller
 ```
 
 Erros de negócio são subclasses de `NegocioException` e centralizados em `GlobalExceptionHandler`
 (`@RestControllerAdvice`), cada uma mapeada para um HTTP status (404/409/401/403 etc.).
 
 Testes: unitário de service com Mockito (mapper real, `*MapperImpl`, não mockado) +
-`@WebMvcTest`/`MockMvc` para o controller. Toda feature nova deve sair com os dois.
+`@WebMvcTest`/`MockMvc` para o controller. Toda feature nova deve sair com os dois. Os testes seguem os
+mesmos pacotes; os de integração (`integracao/`, sem mocks e com JWT real) cruzam domínios. Para
+autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os atalhos de
+`Autenticacao` (`comoCandidato`, `comoRh`, `comoAdministrador`).
 
 ## O que já foi desenvolvido
 
-### Autenticação e Usuários — RF01, RF02, RF03 (parcial)
+### Autenticação, autorização e usuários (RF01, RF02; RF03 pendente)
 - `Usuario`: nome, email, senhaHash (BCrypt), perfil (`candidato`/`rh`/`administrador`), status (`ativo`/`inativo`/`bloqueado`)
-- `AuthController` — `POST /api/auth/login`
-- `UsuarioController` — CRUD completo em `/api/usuarios` (POST, GET lista, GET/{id}, PUT, DELETE)
-- **Não há sessão/JWT/Spring Security real** — apesar de um commit antigo citar "JWT", só existe o encoder de senha. Todo endpoint está aberto; "quem está fazendo a ação" é sempre passado explícito no corpo da requisição.
+- **JWT stateless** (2026-09-30): `POST /api/auth/login` devolve `{id, nome, email, perfil, token}`. O token (HS256, validade de 8h) leva o id do usuário em `sub` e o perfil na claim `perfil`, que vira o papel `ROLE_<perfil>`. As demais rotas exigem `Authorization: Bearer <token>`; sem token ou com token inválido ou expirado, 401.
+- **A identidade vem do token, nunca do corpo**: `rhId` (vagas) e `usuarioId` (currículo) saíram das requisições. Nos controllers, `@AuthenticationPrincipal Jwt` vira `UsuarioLogado(id, perfil)`, que é passado aos services.
+- **Duas camadas de regra**: o papel é imposto no filtro (`SegurancaConfig`); a propriedade (cada um só vê o que é seu) é verificada nos services, que respondem `AcessoNegadoException` (403).
+- Perfil e status vão no token: uma mudança feita em Configurações só vale no próximo login (ou quando o token expirar).
+- `JWT_SECRET` é obrigatório (mínimo 32 caracteres) e não tem valor padrão: sem ele a aplicação não sobe.
+- O administrador tem os poderes do RH (vagas e candidatos de todas as vagas) e, além disso, as Configurações.
 - RF03 (recuperar senha) **não foi implementado**.
+
+#### Rotas (prefixo `/api`)
+
+| Rota | Acesso | Papéis | Regra de propriedade |
+| --- | --- | --- | --- |
+| `POST /auth/login` | pública | todos | não se aplica |
+| `POST /usuarios` | pública | todos | sem token de administrador só cria `candidato`; o administrador cria qualquer perfil |
+| `GET /usuarios` | protegida | administrador | não se aplica |
+| `GET /usuarios/{id}` | protegida | todos | o próprio usuário ou o administrador |
+| `PUT /usuarios/{id}` | protegida | administrador | não altera o próprio perfil ou status |
+| `DELETE /usuarios/{id}` | protegida | administrador | não exclui a própria conta; com vínculos, 409 |
+| `GET /vagas` | protegida | todos | candidato: tudo menos rascunho; RH: só as suas; administrador: todas |
+| `GET /vagas/{id}` | protegida | todos | candidato: rascunho responde 404; RH: só as suas (403); administrador: todas |
+| `POST /vagas` | protegida | rh, administrador | o responsável é quem está logado |
+| `PUT /vagas/{id}` | protegida | rh, administrador | RH só as suas |
+| `POST /curriculos` | protegida | candidato | o dono é quem está logado |
+| `GET /curriculos/{id}`, `GET /curriculos/usuario/{usuarioId}`, `GET /curriculos/{id}/arquivo` | protegida | todos | o dono; o RH de uma vaga em que o candidato se inscreveu; o administrador |
+| `PUT /curriculos/{id}`, `POST /curriculos/{id}/arquivo` | protegida | candidato | só o dono |
+| `POST /candidaturas` | protegida | candidato | o candidato é quem está logado |
+| `GET /candidaturas/minhas` | protegida | candidato | só as próprias |
+| `GET /vagas/{vagaId}/candidaturas` | protegida | rh, administrador | RH responsável pela vaga |
+| `PUT /candidaturas/{id}/status` | protegida | rh, administrador | RH responsável pela vaga |
+| `POST /candidaturas/{id}/documentos` | protegida | candidato | só na própria candidatura |
+| `GET /documentos` | protegida | todos | candidato: os seus; RH: os dos candidatos das suas vagas; administrador: todos |
+| `GET /documentos/{id}/arquivo` | protegida | todos | o dono; o RH da vaga; o administrador |
 
 ### Vagas — RF10, RF11, RN02
 - `Vaga` com `@ManyToOne` para `Usuario rh`
 - `VagaController` — `POST/GET/GET-{id}/PUT` em `/api/vagas` (sem DELETE: RN05 exige manter histórico de vaga encerrada; "excluir" = `PUT` com `status=encerrada`)
-- RN02 (só RH gerencia vaga) validada no service: o `rhId` do corpo precisa apontar para um `Usuario` com `perfil=rh`, senão `RhInvalidoException` (403)
+- RN02: só `rh` e `administrador` criam e editam vagas (filtro de segurança). O responsável é quem está logado; o service ainda confere o perfil no banco (um token anterior a uma troca de perfil gera `RhInvalidoException`, 403). O RH só vê e edita as próprias vagas (RN07)
 
 ### Currículo — RF04, RF05 (reestruturado em 2026-09-29, migration V2)
 - **A tabela `candidato` deixou de existir.** Eram três tabelas 1:1 para a mesma pessoa (`usuario` → `candidato` → `curriculo`) e os nomes não se distinguiam. Hoje: **`usuario` = conta de acesso, `curriculo` = dados do candidato**, com FK direta para `usuario`. `candidatura.candidato_id` virou `candidatura.usuario_id`.
@@ -51,18 +96,36 @@ Testes: unitário de service com Mockito (mapper real, `*MapperImpl`, não mocka
 - **`idade` não é persistida**: é derivada de `dataNascimento` no mapper, para não desatualizar com o tempo
 - `CurriculoController` — `POST /api/curriculos`, `GET /api/curriculos/{id}`, `GET /api/curriculos/usuario/{usuarioId}`, `PUT /api/curriculos/{id}`, `POST /api/curriculos/{id}/arquivo` (multipart, campo `arquivo`), `GET /api/curriculos/{id}/arquivo` (download). Sem DELETE e sem listagem geral — currículo é dado pessoal
 - No `PUT`, as listas de formação e experiência **substituem** as atuais (o cliente envia o estado final)
-- Regra 1:1 (um currículo por candidato) validada com `CurriculoJaExisteException` (409); `usuarioId` precisa ser `perfil=candidato`, senão `CandidatoInvalidoException` (403); arquivo inválido gera `ArquivoInvalidoException` (400) e estouro do limite de multipart, 413
+- Regra 1:1 (um currículo por candidato) validada com `CurriculoJaExisteException` (409); o dono é o candidato logado, conferido no banco (sem `perfil=candidato`, `CandidatoInvalidoException`, 403); arquivo inválido gera `ArquivoInvalidoException` (400) e estouro do limite de multipart, 413
 - **Bug corrigido junto**: salvar o primeiro currículo de um candidato retornava 500 (`AssertionFailure: null identifier`). `Candidato` tinha id atribuído, então o `save()` do Spring Data caía em `merge()` em vez de `persist()`, e o merge de uma entidade `@MapsId` nova quebra dentro do Hibernate. Com a remoção de `Candidato` o problema deixou de existir; `CurriculoIntegracaoTest` cobre a regressão sem mocks
+
+### Candidatura e painel do RH (RF07, RF08, RF12, RF13; RN01, RN05, RN06, RN07)
+- Usa as tabelas `candidatura` e `historico_status` que já existiam (sem migration).
+- `POST /api/candidaturas` `{vagaId}`: só vaga `aberta` (RN05), só com currículo cadastrado (UC04) e uma vez por vaga (RN01); as violações respondem 409. Grava o primeiro registro do histórico (`inscrito`).
+- `GET /api/candidaturas/minhas`: o candidato acompanha as suas (RN06). Cada item traz a vaga (título e status) e o status da candidatura.
+- `GET /api/vagas/{vagaId}/candidaturas`: inscritos da vaga, com nome e e-mail do candidato. O currículo de cada um sai de `GET /api/curriculos/usuario/{candidatoId}`.
+- `PUT /api/candidaturas/{id}/status` `{status, observacao?}`: muda a etapa e grava em `historico_status` quem mudou, de onde para onde e a observação (mudar para o mesmo status não gera histórico).
+- **Etapas** (enum que já existia no banco): `inscrito`, `em_triagem`, `entrevista`, `aprovado`, `reprovado`, `contratado`, `cancelado`. A ordem não é imposta, para o RH poder corrigir um passo; o histórico guarda a trilha.
+
+### Documentos de contratação (RF09; RN03, RN06, RN07, RN08)
+- Usa a tabela `documento` que já existia (sem migration). `arquivo_url` guarda o **nome gerado em disco** (`$APP_UPLOAD_DIR/documento/<uuid>.<pdf|docx>`), não uma URL pública: o download sempre passa pela API.
+- `POST /api/candidaturas/{id}/documentos` (multipart: `arquivo` e `tipo`, ex. "RG"): só o dono da candidatura e só com status `aprovado` ou `contratado` (RN03, senão 409); PDF ou DOCX até 5MB (RN08, senão 400).
+- `GET /api/documentos[?candidatoId=]`: separado por candidato. O candidato vê os seus; o RH vê os dos candidatos das suas vagas; o administrador vê todos. Cada item traz `candidatoId`, `candidatoNome` e a vaga, para o frontend agrupar por candidato.
+- `GET /api/documentos/{id}/arquivo`: download para o dono, o RH da vaga ou o administrador.
+- O armazenamento em disco (`comum/service/ArquivoStorage`) é o mesmo do PDF do currículo, uma pasta por domínio; arquivo ausente em disco responde 404.
+
+### Configurações (administrador)
+- Gestão de usuários com os endpoints de `/api/usuarios`, restritos ao administrador no backend: cadastrar (`POST`, qualquer perfil), listar (`GET`), alterar dados, perfil e status (`PUT`) e excluir (`DELETE`).
+- "Permissões" = perfil (`rh` ou `administrador`) e status (`ativo`, `inativo`, `bloqueado`). Não há tabela de permissões finas.
+- Proteções: o administrador não altera o próprio perfil ou status nem exclui a própria conta (evita ficar sem ninguém para gerir usuários). Excluir usuário com vagas ou candidaturas responde 409; o caminho é bloquear.
 
 ## O que ainda NÃO existe
 
-- Candidatura a vaga (RF07, RN01, UC04) — vincular candidato a vaga, impedir duplicidade
-- Acompanhamento de status da candidatura pelo candidato (RF08)
-- Envio/gestão de documentos (RF09, RN03, RNF09 — PDF/DOCX até 5MB)
-- Painel do RH: listar candidatos inscritos por vaga (RF12), atualizar status do candidato (RF13), solicitar documentos (RF14)
-- Triagem assistida por IA (RF15) — integração com OpenRouter prevista em `modelagem/arquitetura.md`
+- Solicitação de documentos pelo RH (RF14) e revisão (aprovar ou recusar) de documento enviado
+- Triagem assistida por IA (RF15): integração com OpenRouter prevista em `modelagem/arquitetura.md`
 - Relatórios básicos (RF16)
-- Autenticação real (sessão, JWT ou equivalente) e autorização por perfil
+- Recuperação de senha (RF03)
+- Revogação de token (logout no servidor): o JWT vale até expirar
 
 ## Infraestrutura / Deploy (VPS Google Cloud)
 
@@ -79,6 +142,8 @@ Site em produção: **https://piads2026-rh.duckdns.org/** (API em `/api`, ex. `h
 - **Credenciais do banco na VM**: em `/opt/app/backend/src/main/resources/application-local.properties` (gitignored, carregado via `spring.config.import=optional:classpath:application-local.properties`) — **atenção**: por ser carregado via `classpath:`, esse arquivo fica embutido dentro do `.jar`; editar o arquivo sozinho não basta, é preciso rebuildar (`./mvnw clean package`) pra pegar a mudança
 - **CORS de produção**: variável de ambiente `CORS_ALLOWED_ORIGINS` setada no `backend.service` (`Environment=`), não no arquivo de properties — hoje só tem `https://piads2026-rh.duckdns.org`
 - **Uploads (PDF do currículo)**: variável `APP_UPLOAD_DIR` no `backend.service`, apontando para `/opt/app/uploads` (fora do diretório do build, para o rebuild não apagar os arquivos). Sem essa variável o padrão é `./uploads`, relativo ao diretório de trabalho do serviço
+- **Documentos de contratação**: mesma variável, subpasta `documento` (`/opt/app/uploads/documento`)
+- **JWT**: variável `JWT_SECRET` no `backend.service` (`Environment=JWT_SECRET=...`; gere com `openssl rand -base64 48`). Obrigatória desde 2026-09-30: sem ela o backend não sobe. Trocar o segredo invalida todos os tokens emitidos (todos precisam logar de novo)
 
 ### Workflow de deploy
 
@@ -92,7 +157,7 @@ gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9
 
 ## Pendências conhecidas
 
-- Nenhuma pendência de deploy no momento — Flyway roda normalmente contra o MySQL local da VPS.
+- **A autenticação JWT (2026-09-30) ainda não foi publicada na VPS.** Publicar exige, na mesma janela: o frontend já enviando o token (senão tudo responde 401 e o site para), e `JWT_SECRET` no `backend.service` antes do restart (senão o backend não sobe).
 
 ## Como rodar
 
@@ -115,6 +180,9 @@ Com o túnel aberto, `application-local.properties` aponta para `jdbc:mysql://lo
 com o usuário/senha do banco da VM. Sem o túnel (ou apontando para um host inexistente) a aplicação
 **não sobe**: o Flyway falha no startup ao tentar a conexão.
 
+Também é preciso o segredo do JWT: `JWT_SECRET` no ambiente ou `app.jwt.secret` no
+`application-local.properties` (mínimo 32 caracteres). Sem ele a aplicação não sobe.
+
 ## Dados de teste (seed)
 
 `database/seed.sql` popula todas as tabelas com dados de teste (5 vagas, 8 usuários, currículos
@@ -131,4 +199,6 @@ mysql -u <usuario> -p selecao_rh < database/seed.sql
 Pode ser reexecutado: o script começa removendo o seed anterior, com escopo restrito ao domínio
 `@exemplo.test` (contas reais não são afetadas). O único ponto de atenção é `curriculo_arquivo`: a
 linha aponta para `seed-ana.pdf` em `$APP_UPLOAD_DIR/curriculo/`, que precisa existir em disco para
-o download funcionar (o próprio arquivo tem a instrução do `printf`).
+o download funcionar (o próprio arquivo tem a instrução do `printf`). Os três `documento` do seed
+também só referenciam nomes em `$APP_UPLOAD_DIR/documento/`, sem arquivo real: o download deles
+responde 404.

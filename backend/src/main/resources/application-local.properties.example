@@ -11,3 +11,7 @@
 spring.datasource.url=jdbc:mysql://localhost:3306/selecao_rh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Sao_Paulo
 spring.datasource.username=seu_usuario
 spring.datasource.password=sua_senha
+
+# Segredo do JWT para rodar localmente (minimo 32 caracteres; gere com: openssl rand -base64 48).
+# Na VPS nao defina aqui: use JWT_SECRET no backend.service (o que estiver neste arquivo sobrescreve a variavel).
+# app.jwt.secret=

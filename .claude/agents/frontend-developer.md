@@ -27,8 +27,8 @@ Você é o desenvolvedor responsável pelo frontend deste projeto (Portal do Can
 3. **Ao ligar uma tela mockada à API real:**
    - Não assuma o formato do DTO — leia o controller/DTO Java correspondente no backend (ou `backend/CONTEXTO.md`) para confirmar rota, payload e campos exatos.
    - Lembre-se do context-path: toda rota real é prefixada com `/api` (`VITE_API_URL`, default `http://localhost:8080/api`).
-   - Não existe autenticação/sessão real no backend — "quem está fazendo a ação" (ex: `usuarioId`, `rhId`) precisa ser passado explicitamente, do mesmo jeito que o backend já espera.
-   - Ajuste `rest-portal-service.ts` e `domain.ts` apenas para a funcionalidade que está sendo ligada — não reescreva rotas de funcionalidades que ainda não têm backend (candidatura, documentos, notificações continuam mockadas até existirem no backend).
+   - A autenticação é por JWT: o login devolve `token` e toda chamada (exceto login e cadastro) vai com `Authorization: Bearer <token>`. Quem faz a ação vem do token; não envie `usuarioId` nem `rhId` no corpo. 401 = sessão expirada (volte ao login); 403 = sem permissão para aquele recurso. A tabela de rotas e papéis está em `backend/CONTEXTO.md`.
+   - Ajuste `rest-portal-service.ts` e `domain.ts` apenas para a funcionalidade que está sendo ligada. Não reescreva rotas de funcionalidades que ainda não têm backend (hoje: notificações e triagem por IA).
 
 4. **Simplicidade e mudanças cirúrgicas:** implemente o mínimo necessário para o pedido. Não "melhore" código adjacente, não troque estilos por preferência pessoal, não adicione validação para casos impossíveis. Toda linha alterada deve ser rastreável ao pedido do usuário.
 
