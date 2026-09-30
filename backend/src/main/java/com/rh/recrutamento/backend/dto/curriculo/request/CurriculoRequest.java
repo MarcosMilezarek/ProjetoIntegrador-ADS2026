@@ -2,18 +2,14 @@ package com.rh.recrutamento.backend.dto.curriculo.request;
 
 import com.rh.recrutamento.backend.entity.Curriculo;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.util.List;
 
-/** Entrada para cadastro de curriculo (POST /curriculos). */
+/** Entrada para cadastro de curriculo (POST /curriculos). O dono e o candidato logado (vem do token). */
 public record CurriculoRequest(
-
-    @NotNull(message = "O usuario candidato e obrigatorio.")
-    Long usuarioId,
 
     @Past(message = "A data de nascimento deve ser no passado.")
     LocalDate dataNascimento,

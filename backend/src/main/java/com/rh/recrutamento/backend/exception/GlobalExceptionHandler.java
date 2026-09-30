@@ -47,6 +47,11 @@ public class GlobalExceptionHandler {
         return construir(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
+    @ExceptionHandler(AcessoNegadoException.class)
+    public ResponseEntity<ErroResponse> tratarAcessoNegado(AcessoNegadoException ex) {
+        return construir(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(CandidatoInvalidoException.class)
     public ResponseEntity<ErroResponse> tratarCandidatoInvalido(CandidatoInvalidoException ex) {
         return construir(HttpStatus.FORBIDDEN, ex.getMessage());

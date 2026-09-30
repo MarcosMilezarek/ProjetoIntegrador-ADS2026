@@ -1,9 +1,11 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
 import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
 import com.rh.recrutamento.backend.entity.Usuario;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.EmailJaCadastradoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.mapper.UsuarioMapperImpl;
@@ -28,6 +30,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UsuarioServiceTest {
 
+    private static final UsuarioLogado ADMINISTRADOR = new UsuarioLogado(9L, Usuario.Perfil.administrador);
+
     @Mock
     private UsuarioRepository usuarioRepository;
 
@@ -49,7 +53,7 @@ class UsuarioServiceTest {
         when(passwordEncoder.encode("senha123")).thenReturn("hash-bcrypt");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UsuarioResponse resposta = usuarioService.criar(request);
+        UsuarioResponse resposta = usuarioService.criar(request, null);
 
         ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
         verify(usuarioRepository).save(captor.capture());
@@ -70,7 +74,7 @@ class UsuarioServiceTest {
         when(passwordEncoder.encode(any())).thenReturn("hash");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThat(usuarioService.criar(request).status()).isEqualTo("inativo");
+        assertThat(usuarioService.criar(request, ADMINISTRADOR).status()).isEqualTo("inativo");
     }
 
     @Test
@@ -79,7 +83,7 @@ class UsuarioServiceTest {
             "Marina", "marina@email.com", "senha123", Usuario.Perfil.candidato, null);
         when(usuarioRepository.existsByEmail("marina@email.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> usuarioService.criar(request))
+        assertThatThrownBy(() -> usuarioService.criar(request, null))
             .isInstanceOf(EmailJaCadastradoException.class);
         verify(usuarioRepository, never()).save(any());
     }
@@ -99,14 +103,14 @@ class UsuarioServiceTest {
     void buscarPorIdDeveRetornarUsuario() {
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuarioExistente(1L, "marina@email.com")));
 
-        assertThat(usuarioService.buscarPorId(1L).id()).isEqualTo(1L);
+        assertThat(usuarioService.buscarPorId(1L, new UsuarioLogado(1L, Usuario.Perfil.candidato)).id()).isEqualTo(1L);
     }
 
     @Test
     void buscarPorIdDeveFalharQuandoNaoExiste() {
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> usuarioService.buscarPorId(99L))
+        assertThatThrownBy(() -> usuarioService.buscarPorId(99L, ADMINISTRADOR))
             .isInstanceOf(RecursoNaoEncontradoException.class)
             .hasMessageContaining("99");
     }
@@ -119,7 +123,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         UsuarioResponse resposta = usuarioService.atualizar(1L, new UsuarioUpdateRequest(
-            "Marina Andrade", "nova@email.com", Usuario.Perfil.rh, Usuario.Status.bloqueado, null));
+            "Marina Andrade", "nova@email.com", Usuario.Perfil.rh, Usuario.Status.bloqueado, null), ADMINISTRADOR);
 
         assertThat(resposta.nome()).isEqualTo("Marina Andrade");
         assertThat(resposta.perfil()).isEqualTo("rh");
@@ -137,7 +141,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         usuarioService.atualizar(1L, new UsuarioUpdateRequest(
-            "Marina", "marina@email.com", Usuario.Perfil.candidato, Usuario.Status.ativo, "novaSenha"));
+            "Marina", "marina@email.com", Usuario.Perfil.candidato, Usuario.Status.ativo, "novaSenha"), ADMINISTRADOR);
 
         assertThat(usuario.getSenhaHash()).isEqualTo("hash-novo");
     }
@@ -148,7 +152,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.existsByEmailAndIdNot("camila@email.com", 1L)).thenReturn(true);
 
         assertThatThrownBy(() -> usuarioService.atualizar(1L, new UsuarioUpdateRequest(
-            "Marina", "camila@email.com", Usuario.Perfil.candidato, Usuario.Status.ativo, null)))
+            "Marina", "camila@email.com", Usuario.Perfil.candidato, Usuario.Status.ativo, null), ADMINISTRADOR))
             .isInstanceOf(EmailJaCadastradoException.class);
         verify(usuarioRepository, never()).save(any());
     }
@@ -158,7 +162,7 @@ class UsuarioServiceTest {
         Usuario usuario = usuarioExistente(1L, "marina@email.com");
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
-        usuarioService.excluir(1L);
+        usuarioService.excluir(1L, ADMINISTRADOR);
 
         verify(usuarioRepository).delete(usuario);
     }
@@ -167,8 +171,46 @@ class UsuarioServiceTest {
     void excluirDeveFalharQuandoNaoExiste() {
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> usuarioService.excluir(99L))
+        assertThatThrownBy(() -> usuarioService.excluir(99L, ADMINISTRADOR))
             .isInstanceOf(RecursoNaoEncontradoException.class);
+        verify(usuarioRepository, never()).delete(any());
+    }
+
+    @Test
+    void cadastroPublicoNaoPodeCriarUsuarioDoRh() {
+        UsuarioRequest request = new UsuarioRequest(
+            "Intruso", "intruso@email.com", "senha123", Usuario.Perfil.administrador, null);
+
+        assertThatThrownBy(() -> usuarioService.criar(request, null))
+            .isInstanceOf(AcessoNegadoException.class);
+        assertThatThrownBy(() -> usuarioService.criar(request, new UsuarioLogado(2L, Usuario.Perfil.rh)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void buscarDadosDeOutroUsuarioSemSerAdministradorDeveSerNegado() {
+        assertThatThrownBy(() -> usuarioService.buscarPorId(2L, new UsuarioLogado(1L, Usuario.Perfil.candidato)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(usuarioRepository, never()).findById(any());
+    }
+
+    @Test
+    void administradorNaoPodeAlterarOProprioPerfilOuStatus() {
+        Usuario admin = new Usuario("Admin", "admin@email.com", "hash", Usuario.Perfil.administrador, Usuario.Status.ativo);
+        ReflectionTestUtils.setField(admin, "id", 9L);
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> usuarioService.atualizar(9L, new UsuarioUpdateRequest(
+            "Admin", "admin@email.com", Usuario.Perfil.rh, Usuario.Status.ativo, null), ADMINISTRADOR))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void administradorNaoPodeExcluirAPropriaConta() {
+        assertThatThrownBy(() -> usuarioService.excluir(9L, ADMINISTRADOR))
+            .isInstanceOf(AcessoNegadoException.class);
         verify(usuarioRepository, never()).delete(any());
     }
 

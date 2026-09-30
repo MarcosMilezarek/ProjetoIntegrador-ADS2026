@@ -1,9 +1,11 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
 import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.EmailJaCadastradoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.mapper.UsuarioMapper;
@@ -30,8 +32,14 @@ public class UsuarioService {
         this.usuarioMapper = usuarioMapper;
     }
 
+    /** Sem solicitante (cadastro publico) so cria candidato; RH e administrador exigem um administrador logado. */
     @Transactional
-    public UsuarioResponse criar(UsuarioRequest request) {
+    public UsuarioResponse criar(UsuarioRequest request, UsuarioLogado solicitante) {
+        boolean solicitanteEhAdministrador = solicitante != null && solicitante.ehAdministrador();
+        if (request.perfil() != Usuario.Perfil.candidato && !solicitanteEhAdministrador) {
+            throw new AcessoNegadoException("Somente administradores podem cadastrar usuários do RH.");
+        }
+
         String email = normalizarEmail(request.email());
         if (usuarioRepository.existsByEmail(email)) {
             throw new EmailJaCadastradoException(email);
@@ -54,13 +62,20 @@ public class UsuarioService {
             .toList();
     }
 
-    public UsuarioResponse buscarPorId(Long id) {
+    public UsuarioResponse buscarPorId(Long id, UsuarioLogado logado) {
+        if (!logado.ehAdministrador() && !logado.id().equals(id)) {
+            throw new AcessoNegadoException("Você só pode consultar os seus próprios dados.");
+        }
         return usuarioMapper.toResponse(obterUsuario(id));
     }
 
     @Transactional
-    public UsuarioResponse atualizar(Long id, UsuarioUpdateRequest request) {
+    public UsuarioResponse atualizar(Long id, UsuarioUpdateRequest request, UsuarioLogado logado) {
         Usuario usuario = obterUsuario(id);
+        // impede o administrador de se rebaixar ou se bloquear e deixar o sistema sem ninguem para gerir usuarios
+        if (logado.id().equals(id) && (request.perfil() != usuario.getPerfil() || request.status() != usuario.getStatus())) {
+            throw new AcessoNegadoException("Você não pode alterar o seu próprio perfil ou status.");
+        }
 
         String email = normalizarEmail(request.email());
         if (usuarioRepository.existsByEmailAndIdNot(email, id)) {
@@ -77,7 +92,10 @@ public class UsuarioService {
     }
 
     @Transactional
-    public void excluir(Long id) {
+    public void excluir(Long id, UsuarioLogado logado) {
+        if (logado.id().equals(id)) {
+            throw new AcessoNegadoException("Você não pode excluir a sua própria conta.");
+        }
         usuarioRepository.delete(obterUsuario(id));
     }
 

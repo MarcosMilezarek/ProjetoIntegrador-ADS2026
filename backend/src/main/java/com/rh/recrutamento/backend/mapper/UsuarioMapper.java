@@ -11,5 +11,5 @@ public interface UsuarioMapper {
 
     UsuarioResponse toResponse(Usuario usuario);
 
-    LoginResponse toLoginResponse(Usuario usuario);
+    LoginResponse toLoginResponse(Usuario usuario, String token);
 }

@@ -1,5 +1,6 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoUpdateRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.ExperienciaRequest;
@@ -10,6 +11,7 @@ import com.rh.recrutamento.backend.entity.CurriculoArquivo;
 import com.rh.recrutamento.backend.entity.CurriculoExperiencia;
 import com.rh.recrutamento.backend.entity.CurriculoFormacao;
 import com.rh.recrutamento.backend.entity.Usuario;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
@@ -41,8 +43,8 @@ public class CurriculoService {
     }
 
     @Transactional
-    public CurriculoResponse criar(CurriculoRequest request) {
-        Usuario candidato = obterCandidato(request.usuarioId());
+    public CurriculoResponse criar(CurriculoRequest request, UsuarioLogado logado) {
+        Usuario candidato = obterCandidato(logado.id());
 
         if (curriculoRepository.existsByUsuario_Id(candidato.getId())) {
             throw new CurriculoJaExisteException(candidato.getId());
@@ -66,19 +68,24 @@ public class CurriculoService {
         return curriculoMapper.toResponse(curriculoRepository.save(curriculo));
     }
 
-    public CurriculoResponse buscarPorId(Long id) {
-        return curriculoMapper.toResponse(obterCurriculo(id));
+    public CurriculoResponse buscarPorId(Long id, UsuarioLogado logado) {
+        Curriculo curriculo = obterCurriculo(id);
+        verificarLeitura(curriculo.getUsuario().getId(), logado);
+        return curriculoMapper.toResponse(curriculo);
     }
 
-    public CurriculoResponse buscarPorUsuario(Long usuarioId) {
+    public CurriculoResponse buscarPorUsuario(Long usuarioId, UsuarioLogado logado) {
+        // checa antes de buscar, para nao revelar a terceiros se o curriculo existe
+        verificarLeitura(usuarioId, logado);
         Curriculo curriculo = curriculoRepository.findByUsuario_Id(usuarioId)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Curriculo do usuario " + usuarioId + " nao encontrado."));
         return curriculoMapper.toResponse(curriculo);
     }
 
     @Transactional
-    public CurriculoResponse atualizar(Long id, CurriculoUpdateRequest request) {
+    public CurriculoResponse atualizar(Long id, CurriculoUpdateRequest request, UsuarioLogado logado) {
         Curriculo curriculo = obterCurriculo(id);
+        verificarDono(curriculo, logado);
 
         curriculo.atualizarDados(
             request.dataNascimento(),
@@ -99,8 +106,9 @@ public class CurriculoService {
 
     /** Anexa (ou substitui) o PDF do curriculo. */
     @Transactional
-    public CurriculoResponse anexarArquivo(Long id, MultipartFile arquivo) {
+    public CurriculoResponse anexarArquivo(Long id, MultipartFile arquivo, UsuarioLogado logado) {
         Curriculo curriculo = obterCurriculo(id);
+        verificarDono(curriculo, logado);
         CurriculoArquivo anterior = curriculo.getArquivo();
         // definirArquivo atualiza a entidade existente no lugar, entao o nome antigo precisa ser lido antes.
         String nomeAnterior = anterior != null ? anterior.getNomeArmazenado() : null;
@@ -116,13 +124,29 @@ public class CurriculoService {
         return curriculoMapper.toResponse(salvo);
     }
 
-    public ArquivoBaixado baixarArquivo(Long id) {
-        CurriculoArquivo arquivo = obterCurriculo(id).getArquivo();
+    public ArquivoBaixado baixarArquivo(Long id, UsuarioLogado logado) {
+        Curriculo curriculo = obterCurriculo(id);
+        verificarLeitura(curriculo.getUsuario().getId(), logado);
+        CurriculoArquivo arquivo = curriculo.getArquivo();
         if (arquivo == null) {
             throw new RecursoNaoEncontradoException("Curriculo " + id + " nao possui arquivo anexado.");
         }
         return new ArquivoBaixado(arquivo.getNomeOriginal(), arquivo.getContentType(),
             arquivoStorage.ler(arquivo.getNomeArmazenado()));
+    }
+
+    /** So o proprio candidato altera o curriculo. */
+    private void verificarDono(Curriculo curriculo, UsuarioLogado logado) {
+        if (!curriculo.getUsuario().getId().equals(logado.id())) {
+            throw new AcessoNegadoException("Você só pode alterar o seu próprio currículo.");
+        }
+    }
+
+    /** Leem o curriculo: o proprio candidato e o administrador. */
+    private void verificarLeitura(Long donoId, UsuarioLogado logado) {
+        if (!donoId.equals(logado.id()) && !logado.ehAdministrador()) {
+            throw new AcessoNegadoException("Você não tem acesso a este currículo.");
+        }
     }
 
     private Curriculo obterCurriculo(Long id) {

@@ -1,5 +1,6 @@
 package com.rh.recrutamento.backend.controller;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoUpdateRequest;
 import com.rh.recrutamento.backend.dto.curriculo.response.CurriculoResponse;
@@ -8,6 +9,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,36 +28,40 @@ public class CurriculoController {
     }
 
     @PostMapping
-    public ResponseEntity<CurriculoResponse> criar(@Valid @RequestBody CurriculoRequest request) {
-        CurriculoResponse curriculo = curriculoService.criar(request);
+    public ResponseEntity<CurriculoResponse> criar(@Valid @RequestBody CurriculoRequest request,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        CurriculoResponse curriculo = curriculoService.criar(request, UsuarioLogado.de(jwt));
         return ResponseEntity.created(URI.create("/curriculos/" + curriculo.id())).body(curriculo);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CurriculoResponse> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(curriculoService.buscarPorId(id));
+    public ResponseEntity<CurriculoResponse> buscarPorId(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(curriculoService.buscarPorId(id, UsuarioLogado.de(jwt)));
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    public ResponseEntity<CurriculoResponse> buscarPorUsuario(@PathVariable Long usuarioId) {
-        return ResponseEntity.ok(curriculoService.buscarPorUsuario(usuarioId));
+    public ResponseEntity<CurriculoResponse> buscarPorUsuario(@PathVariable Long usuarioId,
+                                                              @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(curriculoService.buscarPorUsuario(usuarioId, UsuarioLogado.de(jwt)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<CurriculoResponse> atualizar(@PathVariable Long id,
-                                                         @Valid @RequestBody CurriculoUpdateRequest request) {
-        return ResponseEntity.ok(curriculoService.atualizar(id, request));
+                                                         @Valid @RequestBody CurriculoUpdateRequest request,
+                                                         @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(curriculoService.atualizar(id, request, UsuarioLogado.de(jwt)));
     }
 
     @PostMapping(path = "/{id}/arquivo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<CurriculoResponse> anexarArquivo(@PathVariable Long id,
-                                                            @RequestPart("arquivo") MultipartFile arquivo) {
-        return ResponseEntity.ok(curriculoService.anexarArquivo(id, arquivo));
+                                                            @RequestPart("arquivo") MultipartFile arquivo,
+                                                            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(curriculoService.anexarArquivo(id, arquivo, UsuarioLogado.de(jwt)));
     }
 
     @GetMapping("/{id}/arquivo")
-    public ResponseEntity<byte[]> baixarArquivo(@PathVariable Long id) {
-        CurriculoService.ArquivoBaixado arquivo = curriculoService.baixarArquivo(id);
+    public ResponseEntity<byte[]> baixarArquivo(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        CurriculoService.ArquivoBaixado arquivo = curriculoService.baixarArquivo(id, UsuarioLogado.de(jwt));
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(arquivo.contentType()))
             .header("Content-Disposition", ContentDisposition.attachment()
