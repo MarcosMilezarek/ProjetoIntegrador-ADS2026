@@ -7,11 +7,8 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
-/** Entrada para cadastro de vaga (POST /vagas). */
+/** Entrada para cadastro de vaga (POST /vagas). O RH responsavel e quem esta logado (vem do token). */
 public record VagaRequest(
-
-    @NotNull(message = "O RH responsável é obrigatório.")
-    Long rhId,
 
     @NotBlank(message = "O título é obrigatório.")
     @Size(max = 150, message = "O título deve ter no máximo 150 caracteres.")

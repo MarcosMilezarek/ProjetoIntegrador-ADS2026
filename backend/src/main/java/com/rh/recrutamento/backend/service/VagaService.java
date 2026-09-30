@@ -1,10 +1,12 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaRequest;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaUpdateRequest;
 import com.rh.recrutamento.backend.dto.vaga.response.VagaResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.entity.Vaga;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.exception.RhInvalidoException;
 import com.rh.recrutamento.backend.mapper.VagaMapper;
@@ -31,8 +33,8 @@ public class VagaService {
     }
 
     @Transactional
-    public VagaResponse criar(VagaRequest request) {
-        Usuario rh = obterRh(request.rhId());
+    public VagaResponse criar(VagaRequest request, UsuarioLogado logado) {
+        Usuario rh = obterRh(logado.id());
 
         Vaga vaga = new Vaga(
             rh,
@@ -49,19 +51,35 @@ public class VagaService {
         return vagaMapper.toResponse(vagaRepository.save(vaga));
     }
 
-    public List<VagaResponse> listar() {
-        return vagaRepository.findAll().stream()
+    /** Candidato ve tudo menos rascunho; RH ve as proprias vagas (RN07); administrador ve todas. */
+    public List<VagaResponse> listar(UsuarioLogado logado) {
+        List<Vaga> vagas = switch (logado.perfil()) {
+            case candidato -> vagaRepository.findByStatusNot(Vaga.Status.rascunho);
+            case rh -> vagaRepository.findByRh_Id(logado.id());
+            case administrador -> vagaRepository.findAll();
+        };
+        return vagas.stream()
             .map(vagaMapper::toResponse)
             .toList();
     }
 
-    public VagaResponse buscarPorId(Long id) {
-        return vagaMapper.toResponse(obterVaga(id));
+    public VagaResponse buscarPorId(Long id, UsuarioLogado logado) {
+        Vaga vaga = obterVaga(id);
+        if (logado.ehCandidato()) {
+            // rascunho e interno do RH: para o candidato, e como se nao existisse
+            if (vaga.getStatus() == Vaga.Status.rascunho) {
+                throw new RecursoNaoEncontradoException("Vaga " + id + " não encontrada.");
+            }
+        } else {
+            verificarResponsavel(vaga, logado);
+        }
+        return vagaMapper.toResponse(vaga);
     }
 
     @Transactional
-    public VagaResponse atualizar(Long id, VagaUpdateRequest request) {
+    public VagaResponse atualizar(Long id, VagaUpdateRequest request, UsuarioLogado logado) {
         Vaga vaga = obterVaga(id);
+        verificarResponsavel(vaga, logado);
 
         vaga.atualizarDados(
             request.titulo().trim(),
@@ -82,10 +100,17 @@ public class VagaService {
             .orElseThrow(() -> new RecursoNaoEncontradoException("Vaga " + id + " não encontrada."));
     }
 
+    private void verificarResponsavel(Vaga vaga, UsuarioLogado logado) {
+        if (!logado.gerencia(vaga)) {
+            throw new AcessoNegadoException("Esta vaga está sob responsabilidade de outro RH.");
+        }
+    }
+
+    /** Confere no banco (o token pode ser anterior a uma troca de perfil). */
     private Usuario obterRh(Long rhId) {
         Usuario usuario = usuarioRepository.findById(rhId)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário " + rhId + " não encontrado."));
-        if (usuario.getPerfil() != Usuario.Perfil.rh) {
+        if (usuario.getPerfil() == Usuario.Perfil.candidato) {
             throw new RhInvalidoException(rhId);
         }
         return usuario;

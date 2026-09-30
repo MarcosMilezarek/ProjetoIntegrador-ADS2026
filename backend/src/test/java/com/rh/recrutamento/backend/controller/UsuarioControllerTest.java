@@ -1,6 +1,9 @@
 package com.rh.recrutamento.backend.controller;
 
 import tools.jackson.databind.ObjectMapper;
+import com.rh.recrutamento.backend.config.CorsConfig;
+import com.rh.recrutamento.backend.config.SegurancaConfig;
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioRequest;
 import com.rh.recrutamento.backend.dto.usuario.response.UsuarioResponse;
 import com.rh.recrutamento.backend.dto.usuario.request.UsuarioUpdateRequest;
@@ -11,20 +14,28 @@ import com.rh.recrutamento.backend.service.UsuarioService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static com.rh.recrutamento.backend.Autenticacao.comoAdministrador;
+import static com.rh.recrutamento.backend.Autenticacao.comoCandidato;
+import static com.rh.recrutamento.backend.Autenticacao.comoRh;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UsuarioController.class)
+@Import({SegurancaConfig.class, CorsConfig.class})
 class UsuarioControllerTest {
+
+    private static final UsuarioLogado ADMINISTRADOR = new UsuarioLogado(9L, Usuario.Perfil.administrador);
 
     @Autowired
     private MockMvc mockMvc;
@@ -39,8 +50,9 @@ class UsuarioControllerTest {
         new UsuarioResponse(1L, "Marina Souza", "marina@email.com", "candidato", "ativo");
 
     @Test
-    void postDeveCriarUsuarioERetornar201() throws Exception {
-        when(usuarioService.criar(any(UsuarioRequest.class))).thenReturn(marina);
+    void postSemTokenDeveCriarUsuarioERetornar201() throws Exception {
+        // cadastro publico: sem token o service recebe solicitante nulo (so aceita candidato)
+        when(usuarioService.criar(any(UsuarioRequest.class), isNull())).thenReturn(marina);
 
         mockMvc.perform(post("/usuarios")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -80,8 +92,21 @@ class UsuarioControllerTest {
     }
 
     @Test
+    void postComoAdministradorDeveRepassarQuemEstaLogado() throws Exception {
+        UsuarioResponse rh = new UsuarioResponse(2L, "Rita", "rita@email.com", "rh", "ativo");
+        when(usuarioService.criar(any(UsuarioRequest.class), eq(ADMINISTRADOR))).thenReturn(rh);
+
+        mockMvc.perform(post("/usuarios").with(comoAdministrador(9))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UsuarioRequest(
+                    "Rita", "rita@email.com", "senha123", Usuario.Perfil.rh, null))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.perfil").value("rh"));
+    }
+
+    @Test
     void postComEmailDuplicadoDeveRetornar409() throws Exception {
-        when(usuarioService.criar(any(UsuarioRequest.class)))
+        when(usuarioService.criar(any(UsuarioRequest.class), any()))
             .thenThrow(new EmailJaCadastradoException("marina@email.com"));
 
         mockMvc.perform(post("/usuarios")
@@ -96,27 +121,49 @@ class UsuarioControllerTest {
     void getDeveListarUsuarios() throws Exception {
         when(usuarioService.listar()).thenReturn(List.of(marina));
 
-        mockMvc.perform(get("/usuarios"))
+        mockMvc.perform(get("/usuarios").with(comoAdministrador(9)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].perfil").value("candidato"));
     }
 
     @Test
-    void getPorIdDeveRetornarUsuario() throws Exception {
-        when(usuarioService.buscarPorId(1L)).thenReturn(marina);
+    void getListaSemTokenDeveRetornar401() throws Exception {
+        mockMvc.perform(get("/usuarios"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.mensagem").exists());
+        verifyNoInteractions(usuarioService);
+    }
 
-        mockMvc.perform(get("/usuarios/1"))
+    @Test
+    void configuracoesDevemSerNegadasAoRhQueNaoEAdministrador() throws Exception {
+        mockMvc.perform(get("/usuarios").with(comoRh(2)))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(put("/usuarios/3").with(comoRh(2))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UsuarioUpdateRequest(
+                    "Rita", "rita@email.com", Usuario.Perfil.administrador, Usuario.Status.ativo, null))))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/usuarios/3").with(comoCandidato(1)))
+            .andExpect(status().isForbidden());
+        verifyNoInteractions(usuarioService);
+    }
+
+    @Test
+    void getPorIdDeveRetornarUsuario() throws Exception {
+        when(usuarioService.buscarPorId(1L, new UsuarioLogado(1L, Usuario.Perfil.candidato))).thenReturn(marina);
+
+        mockMvc.perform(get("/usuarios/1").with(comoCandidato(1)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.nome").value("Marina Souza"));
     }
 
     @Test
     void getPorIdInexistenteDeveRetornar404() throws Exception {
-        when(usuarioService.buscarPorId(99L))
+        when(usuarioService.buscarPorId(99L, ADMINISTRADOR))
             .thenThrow(new RecursoNaoEncontradoException("Usuário 99 não encontrado."));
 
-        mockMvc.perform(get("/usuarios/99"))
+        mockMvc.perform(get("/usuarios/99").with(comoAdministrador(9)))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.mensagem").value("Usuário 99 não encontrado."));
     }
@@ -124,9 +171,9 @@ class UsuarioControllerTest {
     @Test
     void putDeveAtualizarUsuario() throws Exception {
         UsuarioResponse atualizada = new UsuarioResponse(1L, "Marina Andrade", "marina@email.com", "rh", "ativo");
-        when(usuarioService.atualizar(eq(1L), any(UsuarioUpdateRequest.class))).thenReturn(atualizada);
+        when(usuarioService.atualizar(eq(1L), any(UsuarioUpdateRequest.class), eq(ADMINISTRADOR))).thenReturn(atualizada);
 
-        mockMvc.perform(put("/usuarios/1")
+        mockMvc.perform(put("/usuarios/1").with(comoAdministrador(9))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new UsuarioUpdateRequest(
                     "Marina Andrade", "marina@email.com", Usuario.Perfil.rh, Usuario.Status.ativo, null))))
@@ -137,17 +184,17 @@ class UsuarioControllerTest {
 
     @Test
     void deleteDeveRetornar204() throws Exception {
-        mockMvc.perform(delete("/usuarios/1"))
+        mockMvc.perform(delete("/usuarios/1").with(comoAdministrador(9)))
             .andExpect(status().isNoContent());
-        verify(usuarioService).excluir(1L);
+        verify(usuarioService).excluir(1L, ADMINISTRADOR);
     }
 
     @Test
     void deleteInexistenteDeveRetornar404() throws Exception {
         doThrow(new RecursoNaoEncontradoException("Usuário 99 não encontrado."))
-            .when(usuarioService).excluir(99L);
+            .when(usuarioService).excluir(99L, ADMINISTRADOR);
 
-        mockMvc.perform(delete("/usuarios/99"))
+        mockMvc.perform(delete("/usuarios/99").with(comoAdministrador(9)))
             .andExpect(status().isNotFound());
     }
 }

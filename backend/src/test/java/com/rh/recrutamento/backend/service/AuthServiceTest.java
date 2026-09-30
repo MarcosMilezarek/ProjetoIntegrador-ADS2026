@@ -18,6 +18,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +31,14 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private TokenService tokenService;
+
     private AuthService authService;
 
     @BeforeEach
     void montarService() {
-        authService = new AuthService(usuarioRepository, passwordEncoder, new UsuarioMapperImpl());
+        authService = new AuthService(usuarioRepository, passwordEncoder, new UsuarioMapperImpl(), tokenService);
     }
 
     @Test
@@ -41,11 +46,13 @@ class AuthServiceTest {
         when(usuarioRepository.findByEmail("marina@email.com"))
             .thenReturn(Optional.of(usuario(Usuario.Status.ativo)));
         when(passwordEncoder.matches("senha123", "hash")).thenReturn(true);
+        when(tokenService.gerar(any(Usuario.class))).thenReturn("jwt-gerado");
 
         LoginResponse resposta = authService.autenticar(new LoginRequest(" Marina@Email.com ", "senha123"));
 
         assertThat(resposta.email()).isEqualTo("marina@email.com");
         assertThat(resposta.perfil()).isEqualTo("candidato");
+        assertThat(resposta.token()).isEqualTo("jwt-gerado");
     }
 
     @Test
@@ -75,6 +82,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.autenticar(new LoginRequest("marina@email.com", "senha123")))
             .isInstanceOf(UsuarioInativoException.class);
+        verifyNoInteractions(tokenService);
     }
 
     private Usuario usuario(Usuario.Status status) {

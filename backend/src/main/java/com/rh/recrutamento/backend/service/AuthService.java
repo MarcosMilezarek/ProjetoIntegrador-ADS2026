@@ -19,12 +19,14 @@ public class AuthService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final UsuarioMapper usuarioMapper;
+    private final TokenService tokenService;
 
     public AuthService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder,
-                        UsuarioMapper usuarioMapper) {
+                        UsuarioMapper usuarioMapper, TokenService tokenService) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.usuarioMapper = usuarioMapper;
+        this.tokenService = tokenService;
     }
 
     public LoginResponse autenticar(LoginRequest request) {
@@ -39,6 +41,6 @@ public class AuthService {
             throw new UsuarioInativoException();
         }
 
-        return usuarioMapper.toLoginResponse(usuario);
+        return usuarioMapper.toLoginResponse(usuario, tokenService.gerar(usuario));
     }
 }

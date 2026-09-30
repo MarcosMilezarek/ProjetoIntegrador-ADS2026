@@ -1,10 +1,12 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaRequest;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaUpdateRequest;
 import com.rh.recrutamento.backend.dto.vaga.response.VagaResponse;
 import com.rh.recrutamento.backend.entity.Usuario;
 import com.rh.recrutamento.backend.entity.Vaga;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.exception.RhInvalidoException;
 import com.rh.recrutamento.backend.mapper.VagaMapperImpl;
@@ -29,6 +31,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class VagaServiceTest {
 
+    private static final UsuarioLogado RH_1 = new UsuarioLogado(1L, Usuario.Perfil.rh);
+    private static final UsuarioLogado RH_2 = new UsuarioLogado(2L, Usuario.Perfil.rh);
+    private static final UsuarioLogado ADMINISTRADOR = new UsuarioLogado(9L, Usuario.Perfil.administrador);
+    private static final UsuarioLogado CANDIDATO = new UsuarioLogado(5L, Usuario.Perfil.candidato);
+
     @Mock
     private VagaRepository vagaRepository;
 
@@ -45,12 +52,12 @@ class VagaServiceTest {
     @Test
     void criarDeveUsarRascunhoQuandoStatusNaoInformado() {
         VagaRequest request = new VagaRequest(
-            1L, "Desenvolvedor Backend", "Descrição da vaga", "Java, Spring", "Remoto",
+            "Desenvolvedor Backend", "Descrição da vaga", "Java, Spring", "Remoto",
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(rh(1L)));
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        VagaResponse resposta = vagaService.criar(request);
+        VagaResponse resposta = vagaService.criar(request, RH_1);
 
         ArgumentCaptor<Vaga> captor = ArgumentCaptor.forClass(Vaga.class);
         verify(vagaRepository).save(captor.capture());
@@ -63,12 +70,12 @@ class VagaServiceTest {
     @Test
     void criarDeveRespeitarStatusInformado() {
         VagaRequest request = new VagaRequest(
-            1L, "Desenvolvedor Backend", "Descrição", null, null,
+            "Desenvolvedor Backend", "Descrição", null, null,
             Vaga.Modalidade.hibrido, Vaga.TipoContrato.pj, Vaga.Status.aberta, null);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(rh(1L)));
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThat(vagaService.criar(request).status()).isEqualTo("aberta");
+        assertThat(vagaService.criar(request, RH_1).status()).isEqualTo("aberta");
     }
 
     @Test
@@ -76,10 +83,11 @@ class VagaServiceTest {
         Usuario candidato = new Usuario("Marina", "marina@email.com", "hash", Usuario.Perfil.candidato, Usuario.Status.ativo);
         ReflectionTestUtils.setField(candidato, "id", 2L);
         VagaRequest request = new VagaRequest(
-            2L, "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(2L)).thenReturn(Optional.of(candidato));
 
-        assertThatThrownBy(() -> vagaService.criar(request))
+        // token emitido quando ainda era RH: o banco e quem decide
+        assertThatThrownBy(() -> vagaService.criar(request, RH_2))
             .isInstanceOf(RhInvalidoException.class);
         verify(vagaRepository, never()).save(any());
     }
@@ -87,20 +95,20 @@ class VagaServiceTest {
     @Test
     void criarDeveRecusarQuandoRhNaoExiste() {
         VagaRequest request = new VagaRequest(
-            99L, "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> vagaService.criar(request))
+        assertThatThrownBy(() -> vagaService.criar(request, new UsuarioLogado(99L, Usuario.Perfil.rh)))
             .isInstanceOf(RecursoNaoEncontradoException.class);
         verify(vagaRepository, never()).save(any());
     }
 
     @Test
-    void listarDeveConverterTodasAsVagas() {
+    void listarParaAdministradorDeveTrazerTodasAsVagas() {
         when(vagaRepository.findAll()).thenReturn(List.of(
             vagaExistente(1L, "Vaga A"), vagaExistente(2L, "Vaga B")));
 
-        assertThat(vagaService.listar())
+        assertThat(vagaService.listar(ADMINISTRADOR))
             .extracting(VagaResponse::titulo)
             .containsExactly("Vaga A", "Vaga B");
     }
@@ -109,14 +117,14 @@ class VagaServiceTest {
     void buscarPorIdDeveRetornarVaga() {
         when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
 
-        assertThat(vagaService.buscarPorId(1L).id()).isEqualTo(1L);
+        assertThat(vagaService.buscarPorId(1L, RH_1).id()).isEqualTo(1L);
     }
 
     @Test
     void buscarPorIdDeveFalharQuandoNaoExiste() {
         when(vagaRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> vagaService.buscarPorId(99L))
+        assertThatThrownBy(() -> vagaService.buscarPorId(99L, RH_1))
             .isInstanceOf(RecursoNaoEncontradoException.class)
             .hasMessageContaining("99");
     }
@@ -129,7 +137,7 @@ class VagaServiceTest {
 
         VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
             "Vaga Atualizada", "Nova descrição", "Novo requisito", "São Paulo",
-            Vaga.Modalidade.presencial, Vaga.TipoContrato.estagio, Vaga.Status.aberta, null));
+            Vaga.Modalidade.presencial, Vaga.TipoContrato.estagio, Vaga.Status.aberta, null), RH_1);
 
         assertThat(resposta.titulo()).isEqualTo("Vaga Atualizada");
         assertThat(resposta.modalidade()).isEqualTo("presencial");
@@ -144,7 +152,7 @@ class VagaServiceTest {
 
         VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
             "Vaga A", "Descrição", null, null,
-            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.encerrada, null));
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.encerrada, null), RH_1);
 
         assertThat(resposta.status()).isEqualTo("encerrada");
     }
@@ -155,9 +163,77 @@ class VagaServiceTest {
 
         assertThatThrownBy(() -> vagaService.atualizar(99L, new VagaUpdateRequest(
             "Vaga", "Descrição", null, null,
-            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null)))
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), RH_1))
             .isInstanceOf(RecursoNaoEncontradoException.class);
         verify(vagaRepository, never()).save(any());
+    }
+
+    @Test
+    void criarPeloAdministradorDeveDeixaloComoResponsavel() {
+        Usuario admin = new Usuario("Admin", "admin@email.com", "hash", Usuario.Perfil.administrador, Usuario.Status.ativo);
+        ReflectionTestUtils.setField(admin, "id", 9L);
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+        when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        VagaRequest request = new VagaRequest(
+            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+
+        assertThat(vagaService.criar(request, ADMINISTRADOR).rhId()).isEqualTo(9L);
+    }
+
+    @Test
+    void listarParaRhDeveTrazerSoAsVagasDele() {
+        when(vagaRepository.findByRh_Id(1L)).thenReturn(List.of(vagaExistente(1L, "Vaga A")));
+
+        assertThat(vagaService.listar(RH_1)).extracting(VagaResponse::titulo).containsExactly("Vaga A");
+        verify(vagaRepository, never()).findAll();
+    }
+
+    @Test
+    void listarParaCandidatoNaoDeveTrazerRascunhos() {
+        when(vagaRepository.findByStatusNot(Vaga.Status.rascunho)).thenReturn(List.of(vagaExistente(1L, "Vaga A")));
+
+        assertThat(vagaService.listar(CANDIDATO)).hasSize(1);
+        verify(vagaRepository, never()).findAll();
+    }
+
+    @Test
+    void buscarRascunhoComoCandidatoDeveResponderComoInexistente() {
+        when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
+
+        assertThatThrownBy(() -> vagaService.buscarPorId(1L, CANDIDATO))
+            .isInstanceOf(RecursoNaoEncontradoException.class);
+    }
+
+    @Test
+    void buscarVagaDeOutroRhDeveSerNegado() {
+        when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
+
+        assertThatThrownBy(() -> vagaService.buscarPorId(1L, RH_2))
+            .isInstanceOf(AcessoNegadoException.class);
+    }
+
+    @Test
+    void atualizarVagaDeOutroRhDeveSerNegado() {
+        when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
+
+        assertThatThrownBy(() -> vagaService.atualizar(1L, new VagaUpdateRequest(
+            "Vaga", "Descrição", null, null,
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), RH_2))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(vagaRepository, never()).save(any());
+    }
+
+    @Test
+    void administradorPodeAtualizarVagaDeQualquerRh() {
+        when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
+        when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
+            "Vaga B", "Descrição", null, null,
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), ADMINISTRADOR);
+
+        assertThat(resposta.titulo()).isEqualTo("Vaga B");
     }
 
     private Usuario rh(Long id) {

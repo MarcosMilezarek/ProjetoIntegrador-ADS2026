@@ -1,5 +1,6 @@
 package com.rh.recrutamento.backend.service;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.CurriculoUpdateRequest;
 import com.rh.recrutamento.backend.dto.curriculo.request.ExperienciaRequest;
@@ -10,6 +11,7 @@ import com.rh.recrutamento.backend.entity.CurriculoArquivo;
 import com.rh.recrutamento.backend.entity.CurriculoExperiencia;
 import com.rh.recrutamento.backend.entity.CurriculoFormacao;
 import com.rh.recrutamento.backend.entity.Usuario;
+import com.rh.recrutamento.backend.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.exception.CandidatoInvalidoException;
 import com.rh.recrutamento.backend.exception.CurriculoJaExisteException;
 import com.rh.recrutamento.backend.exception.RecursoNaoEncontradoException;
@@ -60,7 +62,7 @@ class CurriculoServiceTest {
         when(curriculoRepository.existsByUsuario_Id(1L)).thenReturn(false);
         when(curriculoRepository.save(any(Curriculo.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        CurriculoResponse resposta = curriculoService.criar(requestCompleto(1L));
+        CurriculoResponse resposta = curriculoService.criar(requestCompleto(), candidatoLogado(1L));
 
         ArgumentCaptor<Curriculo> captor = ArgumentCaptor.forClass(Curriculo.class);
         verify(curriculoRepository).save(captor.capture());
@@ -87,7 +89,7 @@ class CurriculoServiceTest {
 
         ExperienciaRequest atual = new ExperienciaRequest(
             "Dev", "Acme", LocalDate.of(2023, 1, 10), LocalDate.of(2024, 5, 30), true, "Backend");
-        curriculoService.criar(comExperiencias(1L, List.of(atual)));
+        curriculoService.criar(comExperiencias(List.of(atual)), candidatoLogado(1L));
 
         ArgumentCaptor<Curriculo> captor = ArgumentCaptor.forClass(Curriculo.class);
         verify(curriculoRepository).save(captor.capture());
@@ -104,7 +106,7 @@ class CurriculoServiceTest {
 
         ExperienciaRequest anterior = new ExperienciaRequest(
             "Dev", "Acme", LocalDate.of(2023, 1, 10), LocalDate.of(2024, 5, 30), false, "Backend");
-        curriculoService.criar(comExperiencias(1L, List.of(anterior)));
+        curriculoService.criar(comExperiencias(List.of(anterior)), candidatoLogado(1L));
 
         ArgumentCaptor<Curriculo> captor = ArgumentCaptor.forClass(Curriculo.class);
         verify(curriculoRepository).save(captor.capture());
@@ -118,7 +120,7 @@ class CurriculoServiceTest {
         ReflectionTestUtils.setField(rh, "id", 9L);
         when(usuarioRepository.findById(9L)).thenReturn(Optional.of(rh));
 
-        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(9L)))
+        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(), candidatoLogado(9L)))
             .isInstanceOf(CandidatoInvalidoException.class);
         verify(curriculoRepository, never()).save(any());
     }
@@ -127,7 +129,7 @@ class CurriculoServiceTest {
     void criarDeveRecusarQuandoUsuarioNaoExiste() {
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(99L)))
+        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(), candidatoLogado(99L)))
             .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -136,7 +138,7 @@ class CurriculoServiceTest {
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(candidato(1L)));
         when(curriculoRepository.existsByUsuario_Id(1L)).thenReturn(true);
 
-        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(1L)))
+        assertThatThrownBy(() -> curriculoService.criar(requestCompleto(), candidatoLogado(1L)))
             .isInstanceOf(CurriculoJaExisteException.class);
         verify(curriculoRepository, never()).save(any());
     }
@@ -149,7 +151,7 @@ class CurriculoServiceTest {
             null, null, null, null, "Resumo");
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculo));
 
-        CurriculoResponse resposta = curriculoService.buscarPorId(5L);
+        CurriculoResponse resposta = curriculoService.buscarPorId(5L, candidatoLogado(1L));
 
         assertThat(resposta.dataNascimento()).isEqualTo(nascimento);
         assertThat(resposta.idade()).isEqualTo(27);
@@ -159,14 +161,14 @@ class CurriculoServiceTest {
     void buscarPorIdDeveDevolverIdadeNulaSemDataDeNascimento() {
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
 
-        assertThat(curriculoService.buscarPorId(5L).idade()).isNull();
+        assertThat(curriculoService.buscarPorId(5L, candidatoLogado(1L)).idade()).isNull();
     }
 
     @Test
     void buscarPorIdDeveFalharQuandoNaoExiste() {
         when(curriculoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> curriculoService.buscarPorId(99L))
+        assertThatThrownBy(() -> curriculoService.buscarPorId(99L, candidatoLogado(1L)))
             .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -174,7 +176,7 @@ class CurriculoServiceTest {
     void buscarPorUsuarioDeveRetornarCurriculo() {
         when(curriculoRepository.findByUsuario_Id(1L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
 
-        CurriculoResponse resposta = curriculoService.buscarPorUsuario(1L);
+        CurriculoResponse resposta = curriculoService.buscarPorUsuario(1L, candidatoLogado(1L));
 
         assertThat(resposta.id()).isEqualTo(5L);
         assertThat(resposta.usuarioId()).isEqualTo(1L);
@@ -184,7 +186,7 @@ class CurriculoServiceTest {
     void buscarPorUsuarioDeveFalharQuandoNaoExiste() {
         when(curriculoRepository.findByUsuario_Id(77L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> curriculoService.buscarPorUsuario(77L))
+        assertThatThrownBy(() -> curriculoService.buscarPorUsuario(77L, candidatoLogado(77L)))
             .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -202,7 +204,7 @@ class CurriculoServiceTest {
             List.of(new FormacaoRequest("Ciencia da Computacao", "USP", LocalDate.of(2019, 2, 1), null)),
             List.of());
 
-        CurriculoResponse resposta = curriculoService.atualizar(5L, request);
+        CurriculoResponse resposta = curriculoService.atualizar(5L, request, candidatoLogado(1L));
 
         assertThat(curriculo.getFormacoes()).hasSize(1);
         assertThat(curriculo.getFormacoes().getFirst().getCurso()).isEqualTo("Ciencia da Computacao");
@@ -217,7 +219,7 @@ class CurriculoServiceTest {
         when(curriculoRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> curriculoService.atualizar(99L, new CurriculoUpdateRequest(
-            null, null, null, null, null, null, null, null, null, List.of(), List.of())))
+            null, null, null, null, null, null, null, null, null, List.of(), List.of()), candidatoLogado(1L)))
             .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
@@ -230,7 +232,7 @@ class CurriculoServiceTest {
 
         MockMultipartFile pdf = new MockMultipartFile(
             "arquivo", "curriculo-ana.pdf", "application/pdf", "conteudo".getBytes());
-        CurriculoResponse resposta = curriculoService.anexarArquivo(5L, pdf);
+        CurriculoResponse resposta = curriculoService.anexarArquivo(5L, pdf, candidatoLogado(1L));
 
         CurriculoArquivo arquivo = curriculo.getArquivo();
         assertThat(arquivo.getNomeOriginal()).isEqualTo("curriculo-ana.pdf");
@@ -251,7 +253,7 @@ class CurriculoServiceTest {
         when(arquivoStorage.salvar(any())).thenReturn("novo-gerado.pdf");
 
         curriculoService.anexarArquivo(5L, new MockMultipartFile(
-            "arquivo", "novo.pdf", "application/pdf", "novo".getBytes()));
+            "arquivo", "novo.pdf", "application/pdf", "novo".getBytes()), candidatoLogado(1L));
 
         assertThat(curriculo.getArquivo().getNomeArmazenado()).isEqualTo("novo-gerado.pdf");
         verify(arquivoStorage).remover("antigo-gerado.pdf");
@@ -261,7 +263,7 @@ class CurriculoServiceTest {
     void baixarArquivoDeveFalharQuandoCurriculoNaoTemAnexo() {
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
 
-        assertThatThrownBy(() -> curriculoService.baixarArquivo(5L))
+        assertThatThrownBy(() -> curriculoService.baixarArquivo(5L, candidatoLogado(1L)))
             .isInstanceOf(RecursoNaoEncontradoException.class)
             .hasMessageContaining("nao possui arquivo");
     }
@@ -273,11 +275,50 @@ class CurriculoServiceTest {
         when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculo));
         when(arquivoStorage.ler("gerado.pdf")).thenReturn("pdf!".getBytes());
 
-        CurriculoService.ArquivoBaixado baixado = curriculoService.baixarArquivo(5L);
+        CurriculoService.ArquivoBaixado baixado = curriculoService.baixarArquivo(5L, candidatoLogado(1L));
 
         assertThat(baixado.nomeOriginal()).isEqualTo("ana.pdf");
         assertThat(baixado.contentType()).isEqualTo("application/pdf");
         assertThat(baixado.conteudo()).isEqualTo("pdf!".getBytes());
+    }
+
+    @Test
+    void atualizarCurriculoDeOutroCandidatoDeveSerNegado() {
+        when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
+
+        assertThatThrownBy(() -> curriculoService.atualizar(5L, new CurriculoUpdateRequest(
+            null, null, null, null, null, null, null, null, null, List.of(), List.of()), candidatoLogado(2L)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(curriculoRepository, never()).save(any());
+    }
+
+    @Test
+    void anexarArquivoEmCurriculoDeOutroCandidatoDeveSerNegado() {
+        when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
+
+        assertThatThrownBy(() -> curriculoService.anexarArquivo(5L, new MockMultipartFile(
+            "arquivo", "x.pdf", "application/pdf", "x".getBytes()), candidatoLogado(2L)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(arquivoStorage, never()).salvar(any());
+    }
+
+    @Test
+    void buscarCurriculoDeOutroCandidatoDeveSerNegadoSemConsultarOBanco() {
+        assertThatThrownBy(() -> curriculoService.buscarPorUsuario(1L, candidatoLogado(2L)))
+            .isInstanceOf(AcessoNegadoException.class);
+        verify(curriculoRepository, never()).findByUsuario_Id(any());
+    }
+
+    @Test
+    void administradorPodeLerQualquerCurriculo() {
+        when(curriculoRepository.findById(5L)).thenReturn(Optional.of(curriculoDe(5L, candidato(1L))));
+
+        assertThat(curriculoService.buscarPorId(5L, new UsuarioLogado(9L, Usuario.Perfil.administrador)).id())
+            .isEqualTo(5L);
+    }
+
+    private UsuarioLogado candidatoLogado(Long id) {
+        return new UsuarioLogado(id, Usuario.Perfil.candidato);
     }
 
     private Usuario candidato(Long id) {
@@ -293,17 +334,17 @@ class CurriculoServiceTest {
         return curriculo;
     }
 
-    private CurriculoRequest requestCompleto(Long usuarioId) {
+    private CurriculoRequest requestCompleto() {
         return new CurriculoRequest(
-            usuarioId, LocalDate.of(1998, 4, 12), Curriculo.Sexo.feminino, "Campinas", "SP",
+            LocalDate.of(1998, 4, 12), Curriculo.Sexo.feminino, "Campinas", "SP",
             "19999990000", "https://linkedin.com/in/ana", "Java, SQL", "AWS Cloud Practitioner", "Resumo",
             List.of(new FormacaoRequest("ADS", "Fatec", LocalDate.of(2020, 2, 1), LocalDate.of(2023, 12, 15))),
             List.of(new ExperienciaRequest("Dev Junior", "Acme", LocalDate.of(2023, 1, 10),
                 LocalDate.of(2024, 5, 30), false, "Manutencao de APIs")));
     }
 
-    private CurriculoRequest comExperiencias(Long usuarioId, List<ExperienciaRequest> experiencias) {
-        return new CurriculoRequest(usuarioId, null, null, null, null, null, null, null, null, null,
+    private CurriculoRequest comExperiencias(List<ExperienciaRequest> experiencias) {
+        return new CurriculoRequest(null, null, null, null, null, null, null, null, null,
             List.of(), experiencias);
     }
 }

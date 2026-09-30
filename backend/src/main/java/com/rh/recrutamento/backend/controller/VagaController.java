@@ -1,11 +1,14 @@
 package com.rh.recrutamento.backend.controller;
 
+import com.rh.recrutamento.backend.dto.auth.UsuarioLogado;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaRequest;
 import com.rh.recrutamento.backend.dto.vaga.request.VagaUpdateRequest;
 import com.rh.recrutamento.backend.dto.vaga.response.VagaResponse;
 import com.rh.recrutamento.backend.service.VagaService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -22,24 +25,25 @@ public class VagaController {
     }
 
     @PostMapping
-    public ResponseEntity<VagaResponse> criar(@Valid @RequestBody VagaRequest request) {
-        VagaResponse vaga = vagaService.criar(request);
+    public ResponseEntity<VagaResponse> criar(@Valid @RequestBody VagaRequest request, @AuthenticationPrincipal Jwt jwt) {
+        VagaResponse vaga = vagaService.criar(request, UsuarioLogado.de(jwt));
         return ResponseEntity.created(URI.create("/vagas/" + vaga.id())).body(vaga);
     }
 
     @GetMapping
-    public ResponseEntity<List<VagaResponse>> listar() {
-        return ResponseEntity.ok(vagaService.listar());
+    public ResponseEntity<List<VagaResponse>> listar(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(vagaService.listar(UsuarioLogado.de(jwt)));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<VagaResponse> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(vagaService.buscarPorId(id));
+    public ResponseEntity<VagaResponse> buscarPorId(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(vagaService.buscarPorId(id, UsuarioLogado.de(jwt)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<VagaResponse> atualizar(@PathVariable Long id,
-                                                   @Valid @RequestBody VagaUpdateRequest request) {
-        return ResponseEntity.ok(vagaService.atualizar(id, request));
+                                                   @Valid @RequestBody VagaUpdateRequest request,
+                                                   @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(vagaService.atualizar(id, request, UsuarioLogado.de(jwt)));
     }
 }
