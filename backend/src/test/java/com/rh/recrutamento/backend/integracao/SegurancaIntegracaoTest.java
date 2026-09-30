@@ -1,9 +1,9 @@
 package com.rh.recrutamento.backend.integracao;
 
-import com.rh.recrutamento.backend.entity.Usuario;
-import com.rh.recrutamento.backend.entity.Vaga;
-import com.rh.recrutamento.backend.repository.UsuarioRepository;
-import com.rh.recrutamento.backend.repository.VagaRepository;
+import com.rh.recrutamento.backend.usuario.entity.Usuario;
+import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
+import com.rh.recrutamento.backend.vaga.entity.Vaga;
+import com.rh.recrutamento.backend.vaga.repository.VagaRepository;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
