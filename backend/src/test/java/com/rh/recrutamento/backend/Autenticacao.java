@@ -1,6 +1,6 @@
 package com.rh.recrutamento.backend;
 
-import com.rh.recrutamento.backend.entity.Usuario;
+import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 

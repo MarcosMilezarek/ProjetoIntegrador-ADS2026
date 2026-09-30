@@ -1,9 +1,9 @@
 package com.rh.recrutamento.backend.integracao;
 
-import com.rh.recrutamento.backend.entity.Usuario;
-import com.rh.recrutamento.backend.repository.CurriculoRepository;
-import com.rh.recrutamento.backend.repository.UsuarioRepository;
-import com.rh.recrutamento.backend.service.TokenService;
+import com.rh.recrutamento.backend.auth.service.TokenService;
+import com.rh.recrutamento.backend.curriculo.repository.CurriculoRepository;
+import com.rh.recrutamento.backend.usuario.entity.Usuario;
+import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
