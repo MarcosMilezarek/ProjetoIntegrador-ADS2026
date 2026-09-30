@@ -9,9 +9,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
@@ -73,6 +75,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponse> tratarViolacaoDeIntegridade(DataIntegrityViolationException ex) {
         return construir(HttpStatus.CONFLICT,
             "A operação conflita com registros vinculados. Para desativar um usuário, altere o status em vez de excluir.");
+    }
+
+    @ExceptionHandler(DocumentoNaoPermitidoException.class)
+    public ResponseEntity<ErroResponse> tratarDocumentoNaoPermitido(DocumentoNaoPermitidoException ex) {
+        return construir(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Multipart sem o arquivo ou sem o campo tipo: 400, nao 500. */
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ErroResponse> tratarParteAusente(Exception ex) {
+        return construir(HttpStatus.BAD_REQUEST, "Requisição incompleta: " + ex.getMessage());
     }
 
     @ExceptionHandler(ArquivoInvalidoException.class)
