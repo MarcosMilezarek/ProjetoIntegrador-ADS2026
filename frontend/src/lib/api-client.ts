@@ -1,5 +1,14 @@
 const baseUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
 
+/** Token da sessão. Fica só em memória: recarregar a página volta ao login. */
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+/** Define (ou limpa, com null) o token enviado em `Authorization: Bearer` nas chamadas autenticadas. */
+export function setAuthToken(token: string | null) { authToken = token; }
+/** Registra o que fazer quando uma chamada autenticada volta 401 (sessão expirada ou token inválido). */
+export function setUnauthorizedHandler(handler: (() => void) | null) { onUnauthorized = handler; }
+
 /** Erro da API. `campos` traz o mapa campo → mensagem quando o backend responde 400 de validação. */
 export class ApiError extends Error {
   status: number;
@@ -37,16 +46,23 @@ export async function apiClient<T>(
   if (!baseUrl) throw new Error('VITE_API_URL não está configurada.');
 
   const isFormData = init.body instanceof FormData;
+  const token = authToken;
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: { ...(isFormData || options?.as === 'blob' ? {} : { 'Content-Type': 'application/json' }), ...init.headers },
+      headers: {
+        ...(isFormData || options?.as === 'blob' ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
     });
   } catch {
     throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
   }
 
+  // Só reage se o token enviado ainda é o da sessão (um 401 tardio, depois de sair, não deve avisar nada).
+  if (response.status === 401 && token && token === authToken) { authToken = null; onUnauthorized?.(); }
   if (response.status === 404 && options?.notFoundAsNull) return null as T;
   if (!response.ok) throw await erroDaResposta(response);
 

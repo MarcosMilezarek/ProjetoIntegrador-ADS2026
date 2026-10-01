@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   // máquina e o Vite repassa: a VPS só libera CORS para o domínio de produção, então o cabeçalho
   // Origin é removido no repasse. Para usar um backend local, ponha VITE_API_URL em .env.development.local.
   const env = loadEnv(mode, process.cwd(), '');
-  const target = env.VITE_PROXY_TARGET || 'https://piads2026-rh.duckdns.org';
+  const target = env.VITE_PROXY_TARGET || 'https://upteam.duckdns.org';
 
   return {
     plugins: [react(), tailwindcss()],

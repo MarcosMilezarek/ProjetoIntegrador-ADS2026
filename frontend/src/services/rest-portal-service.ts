@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
-import type { CandidateProfile, Job, JobStatus, NewJobInput, Sexo } from '@/types/domain';
+import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, Job, JobStatus, NewJobInput, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { Perfil, StatusUsuario } from '@/types/auth';
 
 /** Formato bruto retornado por /vagas (VagaResponse do backend). */
 interface VagaResponseDTO {
@@ -40,6 +41,42 @@ interface CurriculoResponseDTO {
   atualizadoEm: string;
 }
 
+/** Formato bruto de /candidaturas e /vagas/{id}/candidaturas (CandidaturaResponse do backend). */
+interface CandidaturaResponseDTO {
+  id: number;
+  vagaId: number;
+  vagaTitulo: string;
+  vagaStatus: string;
+  candidatoId: number;
+  candidatoNome: string;
+  candidatoEmail: string;
+  status: string;
+  dataCandidatura: string;
+}
+
+/** Formato bruto de /documentos (DocumentoResponse do backend). */
+interface DocumentoResponseDTO {
+  id: number;
+  candidaturaId: number;
+  vagaId: number;
+  vagaTitulo: string;
+  candidatoId: number;
+  candidatoNome: string;
+  tipo: string;
+  formato: string;
+  tamanhoBytes: number;
+  dataEnvio: string;
+}
+
+/** Formato bruto de /usuarios (UsuarioResponse do backend). */
+interface UsuarioResponseDTO {
+  id: number;
+  nome: string;
+  email: string;
+  perfil: Perfil;
+  status: StatusUsuario;
+}
+
 const modalidadeToApi: Record<Job['workModel'], string> = { Presencial: 'presencial', Remoto: 'remoto', Híbrido: 'hibrido' };
 const modalidadeFromApi: Record<string, Job['workModel']> = { presencial: 'Presencial', remoto: 'Remoto', hibrido: 'Híbrido' };
 const tipoContratoToApi: Record<Job['contract'], string> = { CLT: 'clt', PJ: 'pj', Estágio: 'estagio', Temporário: 'temporario' };
@@ -58,6 +95,55 @@ function jobFromResponse(vaga: VagaResponseDTO): Job {
     description: vaga.descricao,
     requirements: vaga.requisitos ? vaga.requisitos.split('\n').map((item) => item.trim()).filter(Boolean) : [],
   };
+}
+
+const statusFromApi: Record<string, ApplicationStatus> = { inscrito: 'applied', em_triagem: 'reviewing', entrevista: 'interview', aprovado: 'approved', reprovado: 'rejected', contratado: 'hired', cancelado: 'cancelled' };
+const statusToApi: Record<ApplicationStatus, string> = { applied: 'inscrito', reviewing: 'em_triagem', interview: 'entrevista', approved: 'aprovado', rejected: 'reprovado', hired: 'contratado', cancelled: 'cancelado' };
+
+function applicationFromResponse(item: CandidaturaResponseDTO): Application {
+  return {
+    id: String(item.id),
+    jobId: String(item.vagaId),
+    jobTitle: item.vagaTitulo,
+    jobStatus: item.vagaStatus as JobStatus,
+    candidateId: String(item.candidatoId),
+    submittedAt: formatDate(item.dataCandidatura),
+    status: statusFromApi[item.status] ?? 'applied',
+  };
+}
+
+function candidateFromResponse(item: CandidaturaResponseDTO): Candidate {
+  return {
+    id: String(item.candidatoId),
+    name: item.candidatoNome,
+    email: item.candidatoEmail,
+    applicationId: String(item.id),
+    submittedAt: formatDate(item.dataCandidatura),
+    status: statusFromApi[item.status] ?? 'applied',
+  };
+}
+
+function documentFromResponse(item: DocumentoResponseDTO): CandidateDocument {
+  return {
+    id: String(item.id),
+    applicationId: String(item.candidaturaId),
+    jobId: String(item.vagaId),
+    jobTitle: item.vagaTitulo,
+    candidateId: String(item.candidatoId),
+    candidateName: item.candidatoNome,
+    type: item.tipo,
+    format: item.formato,
+    sizeBytes: item.tamanhoBytes,
+    sentAt: formatDate(item.dataEnvio),
+  };
+}
+
+function userFromResponse(item: UsuarioResponseDTO): StaffUser {
+  return { id: String(item.id), name: item.nome, email: item.email, role: item.perfil as StaffUser['role'], status: item.status };
+}
+
+function usuarioBody(input: StaffUserInput) {
+  return { nome: input.name.trim(), email: input.email.trim(), perfil: input.role, status: input.status, senha: input.password || undefined };
 }
 
 function vagaBody(input: NewJobInput & { status: JobStatus }) {
@@ -150,10 +236,10 @@ function curriculoBody(profile: CandidateProfile) {
 export const restPortalService = {
   getJobs: async () => (await apiClient<VagaResponseDTO[]>('/vagas')).map(jobFromResponse),
 
-  saveJob: async (input: NewJobInput & { id?: string; status?: JobStatus }, rhId: string) => {
+  saveJob: async (input: NewJobInput & { id?: string; status?: JobStatus }) => {
     const vaga = input.id
       ? await apiClient<VagaResponseDTO>(`/vagas/${input.id}`, { method: 'PUT', body: JSON.stringify(vagaBody({ ...input, status: input.status ?? 'aberta' })) })
-      : await apiClient<VagaResponseDTO>('/vagas', { method: 'POST', body: JSON.stringify({ ...vagaBody({ ...input, status: 'aberta' }), rhId: Number(rhId) }) });
+      : await apiClient<VagaResponseDTO>('/vagas', { method: 'POST', body: JSON.stringify(vagaBody({ ...input, status: 'aberta' })) });
     return jobFromResponse(vaga);
   },
 
@@ -180,11 +266,11 @@ export const restPortalService = {
     return curriculo ? profileFromResponse(curriculo) : emptyProfile;
   },
 
-  updateProfile: async (usuarioId: string, profile: CandidateProfile) => {
+  updateProfile: async (profile: CandidateProfile) => {
     const dadosCurriculo = curriculoBody(profile);
     const curriculo = profile.id
       ? await apiClient<CurriculoResponseDTO>(`/curriculos/${profile.id}`, { method: 'PUT', body: JSON.stringify(dadosCurriculo) })
-      : await apiClient<CurriculoResponseDTO>('/curriculos', { method: 'POST', body: JSON.stringify({ usuarioId: Number(usuarioId), ...dadosCurriculo }) });
+      : await apiClient<CurriculoResponseDTO>('/curriculos', { method: 'POST', body: JSON.stringify(dadosCurriculo) });
     return profileFromResponse(curriculo);
   },
 
@@ -196,4 +282,34 @@ export const restPortalService = {
   },
 
   downloadResumeFile: (curriculoId: string) => apiClient<Blob>(`/curriculos/${curriculoId}/arquivo`, {}, { as: 'blob' }),
+
+  getApplications: async () => (await apiClient<CandidaturaResponseDTO[]>('/candidaturas/minhas')).map(applicationFromResponse),
+
+  apply: async (jobId: string) => applicationFromResponse(await apiClient<CandidaturaResponseDTO>('/candidaturas', { method: 'POST', body: JSON.stringify({ vagaId: Number(jobId) }) })),
+
+  getCandidates: async (jobId: string) => (await apiClient<CandidaturaResponseDTO[]>(`/vagas/${jobId}/candidaturas`)).map(candidateFromResponse),
+
+  updateApplicationStatus: async (id: string, status: ApplicationStatus) =>
+    applicationFromResponse(await apiClient<CandidaturaResponseDTO>(`/candidaturas/${id}/status`, { method: 'PUT', body: JSON.stringify({ status: statusToApi[status] }) })),
+
+  /** Candidato: os próprios. RH: os dos candidatos das suas vagas. Administrador: todos. */
+  getDocuments: async () => (await apiClient<DocumentoResponseDTO[]>('/documentos')).map(documentFromResponse),
+
+  uploadDocument: async (applicationId: string, type: string, file: File) => {
+    const body = new FormData();
+    body.append('arquivo', file);
+    body.append('tipo', type);
+    return documentFromResponse(await apiClient<DocumentoResponseDTO>(`/candidaturas/${applicationId}/documentos`, { method: 'POST', body }));
+  },
+
+  downloadDocument: (id: string) => apiClient<Blob>(`/documentos/${id}/arquivo`, {}, { as: 'blob' }),
+
+  /** Só o RH e os administradores: os candidatos ficam de fora da lista de Configurações. */
+  getUsers: async () => (await apiClient<UsuarioResponseDTO[]>('/usuarios')).filter((item) => item.perfil !== 'candidato').map(userFromResponse),
+
+  createUser: async (input: StaffUserInput) => userFromResponse(await apiClient<UsuarioResponseDTO>('/usuarios', { method: 'POST', body: JSON.stringify(usuarioBody(input)) })),
+
+  updateUser: async (id: string, input: StaffUserInput) => userFromResponse(await apiClient<UsuarioResponseDTO>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(usuarioBody(input)) })),
+
+  deleteUser: (id: string) => apiClient<void>(`/usuarios/${id}`, { method: 'DELETE' }),
 };
