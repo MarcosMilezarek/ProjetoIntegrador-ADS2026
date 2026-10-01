@@ -2,7 +2,7 @@
 
 > Histórico do que já foi desenvolvido e em que etapa o backend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
-> precisar reconstruir o contexto do zero. Última atualização: 2026-09-30.
+> precisar reconstruir o contexto do zero. Última atualização: 2026-10-01.
 
 ## Stack
 
@@ -27,6 +27,7 @@ com.rh.recrutamento.backend
   curriculo/    dados do candidato (currículo, formação, experiência, PDF)
   candidatura/  inscrição em vaga, etapas do processo seletivo e histórico
   documento/    documentos de contratação
+  notificacao/  notificações em tempo real (SSE) e guardadas no banco
   comum/        erros (GlobalExceptionHandler), CORS, armazenamento de arquivos em disco
 ```
 
@@ -62,6 +63,7 @@ autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os 
 | Rota | Acesso | Papéis | Regra de propriedade |
 | --- | --- | --- | --- |
 | `POST /auth/login` | pública | todos | não se aplica |
+| `GET /auth/me` | protegida | todos | devolve o próprio usuário (restaura a sessão ao recarregar a página) |
 | `POST /usuarios` | pública | todos | sem token de administrador só cria `candidato`; o administrador cria qualquer perfil |
 | `GET /usuarios` | protegida | administrador | não se aplica |
 | `GET /usuarios/{id}` | protegida | todos | o próprio usuário ou o administrador |
@@ -78,9 +80,14 @@ autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os 
 | `GET /candidaturas/minhas` | protegida | candidato | só as próprias |
 | `GET /vagas/{vagaId}/candidaturas` | protegida | rh, administrador | RH responsável pela vaga |
 | `PUT /candidaturas/{id}/status` | protegida | rh, administrador | RH responsável pela vaga |
+| `PUT /candidaturas/{id}/entrevista` | protegida | rh, administrador | RH responsável pela vaga |
 | `POST /candidaturas/{id}/documentos` | protegida | candidato | só na própria candidatura |
+| `GET /candidaturas/{id}/documentos` | protegida | todos | o dono; o RH da vaga; o administrador |
+| `GET /documentos/tipos` | protegida | todos | não se aplica |
 | `GET /documentos` | protegida | todos | candidato: os seus; RH: os dos candidatos das suas vagas; administrador: todos |
 | `GET /documentos/{id}/arquivo` | protegida | todos | o dono; o RH da vaga; o administrador |
+| `GET /notificacoes`, `GET /notificacoes/stream` | protegida | todos | só as próprias (o destinatário vem do token) |
+| `PUT /notificacoes/lidas`, `PUT /notificacoes/{id}/lida` | protegida | todos | só as próprias |
 
 ### Vagas — RF10, RF11, RN02
 - `Vaga` com `@ManyToOne` para `Usuario rh`
@@ -106,13 +113,25 @@ autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os 
 - `GET /api/vagas/{vagaId}/candidaturas`: inscritos da vaga, com nome e e-mail do candidato. O currículo de cada um sai de `GET /api/curriculos/usuario/{candidatoId}`.
 - `PUT /api/candidaturas/{id}/status` `{status, observacao?}`: muda a etapa e grava em `historico_status` quem mudou, de onde para onde e a observação (mudar para o mesmo status não gera histórico).
 - **Etapas** (enum que já existia no banco): `inscrito`, `em_triagem`, `entrevista`, `aprovado`, `reprovado`, `contratado`, `cancelado`. A ordem não é imposta, para o RH poder corrigir um passo; o histórico guarda a trilha.
+- **Agendamento de entrevista** (2026-10-01, migration V4): `PUT /api/candidaturas/{id}/entrevista` `{dataHora}` em ISO 8601 com fuso (ex. `2026-10-15T14:30:00-03:00`). Precisa ser no futuro (senão 400). Grava em `candidatura.entrevista_em` **em UTC**, leva a candidatura para `entrevista` pelo mesmo fluxo de etapa (com histórico) e notifica o candidato com a data e a hora no horário de Brasília (`America/Sao_Paulo`). As respostas de candidatura trazem `entrevistaEm` em UTC (ex. `2026-10-15T17:30:00Z`); o frontend converte para exibir. Não há reagendamento nem cancelamento próprios: chamar de novo grava a data nova.
+- Candidatar avisa o RH da vaga; mudar a etapa avisa o candidato (ver Notificações).
 
 ### Documentos de contratação (RF09; RN03, RN06, RN07, RN08)
-- Usa a tabela `documento` que já existia (sem migration). `arquivo_url` guarda o **nome gerado em disco** (`$APP_UPLOAD_DIR/documento/<uuid>.<pdf|docx>`), não uma URL pública: o download sempre passa pela API.
-- `POST /api/candidaturas/{id}/documentos` (multipart: `arquivo` e `tipo`, ex. "RG"): só o dono da candidatura e só com status `aprovado` ou `contratado` (RN03, senão 409); PDF ou DOCX até 5MB (RN08, senão 400).
+- `arquivo_url` guarda o **nome gerado em disco** (`$APP_UPLOAD_DIR/documento/<uuid>.<pdf|docx>`), não uma URL pública: o download sempre passa pela API.
+- **Lista fechada de tipos** (2026-10-01, migration V5): enum `Documento.Tipo`, exposto em `GET /api/documentos/tipos` (`codigo`, `nome`, `obrigatorio`, `condicao`). Obrigatórios: RG, CPF, CTPS, título de eleitor, comprovante de residência, comprovante de escolaridade, foto 3x4, PIS ou PASEP, certidão de nascimento ou casamento e dados bancários. Condicional: certificado de reservista (homens de 18 a 45 anos), que não entra no total exigido.
+- `POST /api/candidaturas/{id}/documentos` (multipart: `arquivo` e `tipo` com o **código** da lista, ex. `rg`): só o dono da candidatura e só com status `aprovado` ou `contratado` (RN03, senão 409); tipo fora da lista, 400; PDF ou DOCX até 5MB (RN08, senão 400). **Um por tipo em cada candidatura** (`uk_documento_candidatura_tipo`): reenviar o mesmo tipo substitui o arquivo anterior.
+- `GET /api/candidaturas/{id}/documentos`: quadro com `enviados`, `pendentes`, `enviadosExigidos` e `totalExigidos`. O candidato e o RH da vaga veem o mesmo quadro.
+- Na saída, `tipo` é o nome para exibir e `tipoCodigo` o código da lista. Envios antigos de texto livre: a V5 guardou o texto em `tipo_informado` e preencheu `tipo` quando havia correspondência; o que não correspondeu ficou com `tipo` nulo (`tipoCodigo` nulo na API) e continua listado em `enviados`.
 - `GET /api/documentos[?candidatoId=]`: separado por candidato. O candidato vê os seus; o RH vê os dos candidatos das suas vagas; o administrador vê todos. Cada item traz `candidatoId`, `candidatoNome` e a vaga, para o frontend agrupar por candidato.
 - `GET /api/documentos/{id}/arquivo`: download para o dono, o RH da vaga ou o administrador.
 - O armazenamento em disco (`comum/service/ArquivoStorage`) é o mesmo do PDF do currículo, uma pasta por domínio; arquivo ausente em disco responde 404.
+
+### Notificações em tempo real (2026-10-01, migration V3)
+- Tabela `notificacao` (destinatário, título, mensagem, lida, data). Geradas pelo backend: candidatura nova avisa o RH da vaga; documento enviado avisa o RH da vaga; mudança de etapa e entrevista agendada avisam o candidato.
+- Entrega por **SSE**: `GET /api/notificacoes/stream` (`text/event-stream`). Evento `conectado` ao abrir, evento `notificacao` (JSON igual ao da listagem) a cada aviso e um comentário `:ping` a cada 25s para o nginx não cortar a conexão. A notificação só é enviada depois do commit da ação.
+- **O token vai no cabeçalho `Authorization`, nunca na URL**: o frontend lê o stream com `fetch` (não com `EventSource`, que não manda cabeçalho). A conexão fecha quando o token expira; o cliente reconecta e, com token vencido, recebe 401.
+- As conexões ficam em memória (`NotificacaoService`), uma por aba. Serve para uma instância só do backend, que é o caso da VPS.
+- `GET /api/notificacoes` lista as próprias (mais novas primeiro); `PUT /api/notificacoes/{id}/lida` marca uma; `PUT /api/notificacoes/lidas` marca todas. O contador de não lidas é calculado no cliente.
 
 ### Configurações (administrador)
 - Gestão de usuários com os endpoints de `/api/usuarios`, restritos ao administrador no backend: cadastrar (`POST`, qualquer perfil), listar (`GET`), alterar dados, perfil e status (`PUT`) e excluir (`DELETE`).
@@ -177,6 +196,8 @@ A senha do banco real (VPS) fica só em `application-local.properties` (gitignor
 ```bash
 gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9558c67f-ba71-45f5-82b" -- -L 3306:localhost:3306
 ```
+
+**Atenção ao rodar uma migration nova pelo túnel**: o Flyway aplica no banco de produção assim que o backend local sobe. Se o código ainda não foi publicado na VM, o backend de produção passa a rodar com um schema que ele não conhece (foi o caso da V5, que renomeia `documento.tipo`). Teste migrations novas num MySQL descartável e só depois publique.
 
 Com o túnel aberto, `application-local.properties` aponta para `jdbc:mysql://localhost:3306/selecao_rh`
 com o usuário/senha do banco da VM. Sem o túnel (ou apontando para um host inexistente) a aplicação
