@@ -26,34 +26,47 @@
 - Sem gerenciador de estado externo (só `useState`/`useEffect` locais em `App.tsx`)
 - `npm install && npm run dev` (ver `frontend/README.md`)
 
-## Estado atual: tudo ligado ao backend real, exceto notificações (2026-10-01)
+## Estado atual: tudo ligado ao backend real (2026-10-01)
 
 O frontend inteiro está em um único arquivo, [`src/App.tsx`](src/App.tsx), com todas as telas do
 Portal do Candidato e do Painel do RH. A API é a descrita em `backend/CONTEXTO.md` (seção "Rotas",
 com papel e regra de propriedade de cada endpoint).
 
-> **Publicação:** esta versão envia o token JWT em toda chamada. O backend com JWT (commits
-> `f09ceff` a `e952761`) e este frontend precisam ir para a VPS juntos: com o backend novo e o
-> frontend antigo o site para (tudo responde 401), e o contrário também não funciona.
+> **Publicação:** o JWT já está na VPS. Sessão salva (`GET /auth/me`), notificações em tempo real,
+> agendamento de entrevista e tipos de documento dependem das migrations V3 a V5 e das rotas novas
+> do backend de 2026-10-01: backend e frontend devem ir juntos. Com o frontend novo e o backend
+> antigo, o F5 derruba a sessão (`/auth/me` não existe) e o sino e os documentos falham.
 
 ### Sessão (JWT)
-- `POST /auth/login` devolve `{id, nome, email, perfil, token}`. O token fica só em memória
-  (`setAuthToken` em [`src/lib/api-client.ts`](src/lib/api-client.ts)); recarregar a página volta ao
-  login, como antes. O `apiClient` manda `Authorization: Bearer <token>` em toda chamada. O login e
-  o cadastro (`auth-service.ts`) continuam sem token.
+- `POST /auth/login` devolve `{id, nome, email, perfil, token}`. O `App` grava
+  `{token, id, nome, email, perfil}` em `localStorage`, chave `upteam.sessao`
+  (`readSession`/`writeSession` em `App.tsx`), e chama `setAuthToken` em
+  [`src/lib/api-client.ts`](src/lib/api-client.ts). O `apiClient` manda `Authorization: Bearer <token>`
+  em toda chamada. O login e o cadastro (`auth-service.ts`) continuam sem token.
+- **F5 (restaurar a sessão):** se houver sessão salva, o `App` mostra a `LoadingScreen` (nunca o login),
+  define o token e chama `GET /auth/me` (`authService.usuarioAtual`). Sucesso: restaura o usuário e a
+  tela da URL. 401, 403 ou 404, ou um perfil diferente do salvo: apaga a sessão e volta ao login com
+  "Sua sessão expirou. Entre novamente." Falha de rede: a `LoadingScreen` mostra o erro com "Tentar
+  novamente" e "Voltar ao login" (a sessão é mantida).
+- **Tela na URL (hash):** `#/candidato/{vagas|vaga/{id}|curriculo|candidaturas|documentos}` e
+  `#/rh/{vagas|candidatos[/{vagaId}]|documentos|configuracoes}`. O hash é escrito a cada navegação (o
+  botão voltar do navegador funciona) e lido ao restaurar. Hash de outro perfil, inexistente, ou
+  `configuracoes` para quem não é administrador: cai na tela inicial do perfil. A tela "Candidatura
+  enviada" usa o hash de Candidaturas.
 - **401** em qualquer chamada autenticada: o `apiClient` chama o handler registrado com
-  `setUnauthorizedHandler`, o `App` encerra a sessão (`signOut`) e o login mostra "Sua sessão
-  expirou. Entre novamente." Um 401 que chega depois de o usuário já ter saído é ignorado.
+  `setUnauthorizedHandler`, o `App` encerra a sessão (`signOut`, que também apaga a chave salva e o
+  hash) e o login mostra o aviso. Um 401 que chega depois de o usuário já ter saído é ignorado.
 - **403**: não desloga. Ações mostram a `mensagem` do backend no aviso (toast); o carregamento dos
   inscritos mostra a mensagem na própria tela, com "Tentar novamente".
 - Perfis: `candidato` entra no portal; `rh` e `administrador` entram no painel do RH. O
   administrador tem a aba extra **Configurações** (esconder a aba é só conveniência: o backend
   responde 403 a quem não é administrador).
-- O corpo das requisições não leva mais `usuarioId` (currículo) nem `rhId` (vaga): quem age vem do token.
-- O `refresh` do `App` carrega por papel. Candidato: vagas, currículo, candidaturas, documentos e
-  notificações. RH e administrador: só vagas e documentos (currículo e `/candidaturas/minhas`
-  respondem 403 para eles). Os inscritos são carregados na tela de candidatos e os usuários na
-  tela de Configurações. As telas de candidaturas e documentos recarregam os dados ao abrir.
+- O corpo das requisições não leva `usuarioId` (currículo) nem `rhId` (vaga): quem age vem do token.
+- O `refresh` do `App` carrega por papel. Candidato: vagas, currículo, candidaturas e notificações.
+  RH e administrador: vagas, documentos e notificações (currículo e `/candidaturas/minhas` respondem
+  403 para eles). Os inscritos são carregados na tela de candidatos, os usuários na de Configurações e
+  os quadros de documentos dentro das telas que os mostram. As telas de candidaturas e documentos
+  recarregam os dados ao abrir.
 
 ### O que está ligado ao backend real
 Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-service.ts).
@@ -73,16 +86,27 @@ Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-
   reprovado=Não selecionado, contratado=Contratado, cancelado=Cancelado. Contratado e Cancelado
   só vêm da API (o painel não os oferece) e a tela os exibe normalmente.
 - **Painel do RH, candidatos por vaga**: `getCandidates` é `GET /vagas/{id}/candidaturas`;
-  `updateApplicationStatus` é `PUT /candidaturas/{id}/status`. O menu oferece Ver currículo, Mover
-  para análise, Chamar para entrevista, Aprovar e Não selecionar (com confirmação); a opção igual à
-  etapa atual fica desabilitada. "Ver currículo" abre um diálogo somente leitura
-  (`GET /curriculos/usuario/{candidatoId}`) com botão para baixar o PDF.
-- **Documentos por candidato**: não há lista de documentos pedidos nem revisão; cada documento é um
-  arquivo enviado pelo candidato numa candidatura `aprovado` ou `contratado`.
-  Candidato: `GET /documentos` (os seus) e formulário de envio (`POST /candidaturas/{id}/documentos`,
-  multipart `arquivo` e `tipo`; PDF ou DOCX, 5 MB, tipo livre com sugestões). RH e administrador:
-  `GET /documentos` agrupado por candidato, com Baixar. O botão "Meus documentos" na tela de
-  candidaturas abre a tela do candidato mesmo sem aprovação (estado vazio explica a regra).
+  `updateApplicationStatus` é `PUT /candidaturas/{id}/status`. O menu oferece Ver currículo, Ver
+  documentos, Mover para análise, Chamar para entrevista (ou Reagendar), Aprovar e Não selecionar (com
+  confirmação). "Ver currículo" abre um diálogo somente leitura (`GET /curriculos/usuario/{candidatoId}`)
+  com botão para baixar o PDF.
+- **Entrevista:** "Chamar para entrevista" abre um diálogo com `datetime-local` (`min` = agora em
+  Brasília) e envia `PUT /candidaturas/{id}/entrevista {dataHora: "<valor>:00-03:00"}` (horário de
+  Brasília, sem horário de verão). O 400 de `campos.dataHora` aparece no campo. As listas trazem
+  `entrevistaEm` em UTC (`interviewAt` nos tipos `Application` e `Candidate`), exibido com
+  `formatDateTime` (`Intl.DateTimeFormat` pt-BR, fuso `America/Sao_Paulo`) na tela do candidato e na
+  lista do RH. Chamar de novo grava a data nova (o item vira "Reagendar entrevista").
+- **Documentos de contratação:** lista fechada de tipos em `GET /documentos/tipos` (`DocumentType`),
+  que alimenta o `Select` do formulário; o upload (`POST /candidaturas/{id}/documentos`, multipart
+  `arquivo` e `tipo`) leva o **código** do tipo (ex. `rg`), PDF ou DOCX até 5 MB, e reenviar o mesmo
+  tipo substitui o anterior. O quadro de cada candidatura aprovada ou contratada vem de
+  `GET /candidaturas/{id}/documentos` (`DocumentBoard`): contador "X de Y obrigatórios enviados",
+  lista "Enviados" (Baixar e Substituir) e "Pendentes" (selo "Condicional" e o texto da condição);
+  envio antigo sem código mostra o selo "tipo antigo" e não tem Substituir. Depois de cada envio o
+  quadro recarrega. O RH abre o mesmo quadro (somente leitura) pelo menu do candidato, "Ver documentos".
+  A página Documentos do RH e do administrador segue agrupada por candidato (`GET /documentos`).
+  O botão "Meus documentos" da tela de candidaturas abre a tela do candidato mesmo sem aprovação (o
+  estado vazio explica a regra).
 - **Downloads** (`GET /documentos/{id}/arquivo`, `GET /curriculos/{id}/arquivo`): como blob pelo
   `apiClient` (um link direto não leva o token). O nome do arquivo é montado no cliente
   (`${tipo}.${formato}` no documento, `arquivo.nomeOriginal` no currículo).
@@ -94,36 +118,51 @@ Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-
   ficam desabilitados (o backend responde 403). A tela avisa que mudanças de perfil e status só
   valem no próximo login da pessoa (o token dura 8 horas).
 
-### O que ainda roda 100% mockado (localStorage, sem tocar o backend)
-- **Notificações** (`getNotifications`, `markNotificationsRead`). O sino do candidato mostra dados
-  de exemplo; o backend ainda não tem o endpoint.
+### Notificações (candidato, RH e administrador)
+- `GET /notificacoes` (mais novas primeiro) vira `NotificationItem` (`titulo`, `mensagem`, `lida`).
+  O sino aparece nos dois painéis; o contador é a quantidade com `read === false`. Fechar o sino
+  marca todas (`PUT /notificacoes/lidas`, 204); clicar numa notificação marca só ela
+  (`PUT /notificacoes/{id}/lida`). A tela marca na hora e a API confirma depois.
+- **Tempo real (SSE):** com sessão ativa, o `App` chama `portalService.subscribeNotifications`, que
+  lê `GET /notificacoes/stream` com `fetch` (o `apiClient` devolve a `Response` com `as: 'stream'`),
+  com o token no cabeçalho e nunca na URL (não usa `EventSource`). O leitor separa os blocos por linha
+  em branco, lê `event:` e `data:` e ignora as linhas que começam com `:` (ping de 25 s). Evento
+  `conectado`: recarrega a lista. Evento `notificacao`: insere no topo se o id ainda não existe, sobe
+  `liveVersion` (a lista de inscritos e os quadros de documentos abertos recarregam) e chama `refresh()`.
+- Reconexão quando o fluxo cai: espera crescente de 1, 2, 5, 10 e 30 s (a última se repete), zerada ao
+  receber `conectado`. Resposta 401 para o laço (o `apiClient` já derruba a sessão). Sair da conta
+  aborta o fluxo com `AbortController`.
 
 ### Modo mock
 [`src/services/portal-service.ts`](src/services/portal-service.ts) exporta `portalService`: com
 `VITE_USE_MOCK_API=false` os métodos da API real substituem os do mock; sem a flag (padrão) tudo é
 mock, com as mesmas assinaturas. O mock guarda tudo em `localStorage` (chave
-`vagas-plus-mock-db-v2`) e inclui candidaturas, documentos e usuários de exemplo. O login e o
-cadastro sempre falam com a API, então até o mock precisa de um backend para entrar.
+`vagas-plus-mock-db-v3`) e inclui candidaturas, documentos (com a mesma lista de tipos), usuários e
+notificações de exemplo, sem tempo real. O login e o cadastro sempre falam com a API, então até o
+mock precisa de um backend para entrar.
 
 ### Como testar localmente
 - `frontend/.env.development` (versionado) aponta `VITE_API_URL=/api`, que o Vite repassa para a
-  VPS (`vite.config.ts`). Enquanto a VPS não tiver o backend com JWT, teste com um backend local:
-  crie `frontend/.env.development.local` (ignorado pelo git) com
-  `VITE_API_URL=http://localhost:8081/api`.
-- O backend local precisa de um MySQL próprio com o schema do Flyway e o `database/seed.sql`
+  VPS (`vite.config.ts`). Para outro backend, use `frontend/.env.development.local` (ignorado pelo
+  git) com `VITE_API_URL=http://localhost:PORTA/api`; uma variável de ambiente do processo também
+  vale.
+- O backend local precisa de um MySQL com o schema do Flyway (V1 a V5) e o `database/seed.sql`
   (senha dos usuários de teste `senha123`, e-mails `@exemplo.test`), e de `JWT_SECRET`. O CORS
-  padrão do backend libera `http://localhost:5173`.
-- Para a candidata Ana aparecer aprovada na vaga Backend Java (o seed a deixa em entrevista), mude
-  a etapa dela pelo painel do RH (rita.rh) ou por `PUT /candidaturas/1/status`.
+  padrão libera `http://localhost:5173`; outras origens vão em `CORS_ALLOWED_ORIGINS`.
+- Para testar notificações em tempo real são necessários dois navegadores (ou perfis) independentes,
+  porque a sessão salva fica no `localStorage` da origem: um como RH e outro como candidato.
+- O seed deixa a Ana em entrevista na vaga Backend Java; para ela aparecer aprovada (documentos),
+  mude a etapa pelo painel do RH (rita.rh) ou por `PUT /candidaturas/1/status`.
 
 ## Telas implementadas (todas em `App.tsx`)
 
 - **Login** / **Signup**: reais.
 - **Portal do candidato**: Vagas (lista, filtro por modalidade e busca; só `aberta`), Detalhe da vaga
-  e candidatura, Sucesso, Meu currículo, Minhas candidaturas (status real) e Documentos (envio e
-  lista dos próprios).
+  e candidatura, Sucesso, Meu currículo, Minhas candidaturas (status real e data da entrevista) e
+  Documentos (formulário com lista de tipos e quadro de enviados e pendentes por candidatura aprovada).
 - **Painel do RH**: Vagas (criar, editar, encerrar), Candidatos por vaga (inscritos reais, etapas,
-  currículo), Documentos agrupados por candidato e, só para o administrador, Configurações.
+  entrevista com data e hora, currículo, quadro de documentos), Documentos agrupados por candidato e,
+  só para o administrador, Configurações. Sino de notificações em todas as telas.
 
 ## O que ainda NÃO existe no frontend
 
@@ -132,9 +171,9 @@ cadastro sempre falam com a API, então até o mock precisa de um backend para e
   "Candidatura enviada" ainda cita "triagem assistida" e deveria ser revisto.
 - Recuperação de senha (RF03) não tem tela.
 - Solicitação de documentos pelo RH (RF14) e revisão (aprovar ou pedir ajuste) de documento.
-- Atalho `GET /documentos?candidatoId=` a partir da tela de candidatos: o endpoint existe, mas a tela
-  de documentos já agrupa por candidato e não usa o filtro.
+- Atalho `GET /documentos?candidatoId=` a partir da tela de candidatos: o endpoint existe, mas as
+  telas já agrupam por candidato ou usam o quadro da candidatura.
 - Fluxo de "publicar rascunho": uma vaga criada pelo diálogo "Nova vaga" já nasce com
   `status: 'aberta'`.
-- Sessão persistida entre reloads: um F5 sempre volta para a tela de login.
 - Renovação do token: ao expirar (8 horas), a pessoa entra de novo.
+- Cancelar entrevista: o backend só reagenda (chamar de novo grava a data nova).
