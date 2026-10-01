@@ -155,9 +155,11 @@ Sequência pra atualizar a VM após um push:
 gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9558c67f-ba71-45f5-82b" --command "cd /opt/app && git pull && cd backend && ./mvnw -q -DskipTests clean package && sudo systemctl restart backend && cd ../frontend && npm install --no-audit --no-fund && npm run build"
 ```
 
-## Pendências conhecidas
+Se o histórico do GitHub for reescrito (force push), o `git pull` da VM falha. Nesse caso use `git fetch origin && git reset --hard origin/main` e depois `chmod +x backend/mvnw`, porque o reset devolve o `mvnw` sem permissão de execução (a VM mantém essa permissão só localmente).
 
-- **A autenticação JWT (2026-09-30) ainda não foi publicada na VPS.** Publicar exige, na mesma janela: o frontend já enviando o token (senão tudo responde 401 e o site para), e `JWT_SECRET` no `backend.service` antes do restart (senão o backend não sobe).
+## Publicação do JWT
+
+A autenticação JWT foi publicada na VPS em 2026-10-01, junto com o frontend que envia o token. `JWT_SECRET` está no `backend.service`. Antes dessa publicação, o jar e o `dist` anteriores foram guardados em `/opt/backup` (`backend-antes-jwt.jar`, `dist-antes-jwt` e `sha-antes-jwt.txt`), caso seja preciso voltar atrás.
 
 ## Como rodar
 
