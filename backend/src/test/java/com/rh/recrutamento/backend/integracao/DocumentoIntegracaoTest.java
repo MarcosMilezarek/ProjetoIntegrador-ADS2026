@@ -102,6 +102,63 @@ class DocumentoIntegracaoTest {
             .andExpect(status().isForbidden());
     }
 
+    @Test
+    void tipoVemDaListaEOQuadroDeEnviadosEPendentesEOMesmoParaCandidatoERh() throws Exception {
+        Usuario rita = usuario("rita@quadro.test", Usuario.Perfil.rh);
+        Usuario paulo = usuario("paulo@quadro.test", Usuario.Perfil.rh);
+        Usuario ana = usuario("ana@quadro.test", Usuario.Perfil.candidato);
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null,
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
+        Candidatura daAna = candidatura(ana, vaga, Candidatura.Status.aprovado);
+        String envio = "/candidaturas/" + daAna.getId() + "/documentos";
+        MockMultipartFile primeiro = new MockMultipartFile("arquivo", "cpf.pdf", "application/pdf", "%PDF-1.4 v1".getBytes());
+        MockMultipartFile segundo = new MockMultipartFile("arquivo", "cpf.pdf", "application/pdf", "%PDF-1.4 v2".getBytes());
+
+        mockMvc.perform(get("/documentos/tipos").header("Authorization", token(ana)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].codigo").value("rg"))
+            .andExpect(jsonPath("$[?(@.codigo == 'certificado_reservista')].obrigatorio").value(false));
+
+        // texto livre fora da lista: 400
+        mockMvc.perform(multipart(envio).file(primeiro).param("tipo", "Documento qualquer")
+                .header("Authorization", token(ana)))
+            .andExpect(status().isBadRequest());
+
+        // antes de enviar: tudo pendente
+        mockMvc.perform(get(envio).header("Authorization", token(ana)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.enviados.length()").value(0))
+            .andExpect(jsonPath("$.enviadosExigidos").value(0))
+            .andExpect(jsonPath("$.totalExigidos").value(10));
+
+        mockMvc.perform(multipart(envio).file(primeiro).param("tipo", "cpf").header("Authorization", token(ana)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.tipo").value("CPF"))
+            .andExpect(jsonPath("$.tipoCodigo").value("cpf"));
+        // reenviar o mesmo tipo substitui: continua um so, com o arquivo novo
+        String reenvio = mockMvc.perform(multipart(envio).file(segundo).param("tipo", "cpf")
+                .header("Authorization", token(ana)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        Integer documentoId = JsonPath.read(reenvio, "$.id");
+
+        // o candidato e o RH da vaga veem o mesmo quadro
+        for (Usuario quem : new Usuario[] {ana, rita}) {
+            mockMvc.perform(get(envio).header("Authorization", token(quem)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enviados.length()").value(1))
+                .andExpect(jsonPath("$.enviados[0].tipoCodigo").value("cpf"))
+                .andExpect(jsonPath("$.enviadosExigidos").value(1))
+                .andExpect(jsonPath("$.pendentes[?(@.codigo == 'cpf')]").isEmpty())
+                .andExpect(jsonPath("$.pendentes.length()").value(10));
+        }
+        mockMvc.perform(get("/documentos/" + documentoId + "/arquivo").header("Authorization", token(rita)))
+            .andExpect(content().bytes("%PDF-1.4 v2".getBytes()));
+        // outro RH nao ve o quadro
+        mockMvc.perform(get(envio).header("Authorization", token(paulo)))
+            .andExpect(status().isForbidden());
+    }
+
     private Candidatura candidatura(Usuario candidato, Vaga vaga, Candidatura.Status status) {
         Candidatura candidatura = new Candidatura(candidato, vaga);
         candidatura.alterarStatus(status);

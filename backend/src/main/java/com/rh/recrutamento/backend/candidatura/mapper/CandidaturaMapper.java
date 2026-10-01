@@ -5,6 +5,10 @@ import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
 /** Conversao entre Candidatura e seu DTO de saida. */
 @Mapper(componentModel = "spring")
 public interface CandidaturaMapper {
@@ -15,5 +19,11 @@ public interface CandidaturaMapper {
     @Mapping(target = "candidatoId", source = "candidato.id")
     @Mapping(target = "candidatoNome", source = "candidato.nome")
     @Mapping(target = "candidatoEmail", source = "candidato.email")
+    @Mapping(target = "entrevistaEm", expression = "java(emUtc(candidatura.getEntrevistaEm()))")
     CandidaturaResponse toResponse(Candidatura candidatura);
+
+    /** A coluna guarda a hora em UTC sem fuso; aqui ela volta a ser um instante. */
+    default Instant emUtc(LocalDateTime utc) {
+        return utc == null ? null : utc.toInstant(ZoneOffset.UTC);
+    }
 }

@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
 -- Dados de teste do Sistema de Processo Seletivo.
 --
--- Cobre todas as tabelas do schema (V1 + V2). NAO roda automaticamente: o
+-- Cobre as tabelas do schema (V1 a V5), exceto notificacao, que nasce das acoes no portal. NAO roda automaticamente: o
 -- Flyway nao le este arquivo, justamente para nao injetar dados de teste em
 -- producao sem intencao. Aplicar manualmente:
 --
@@ -172,19 +172,20 @@ INSERT INTO candidatura (usuario_id, vaga_id, status, data_candidatura) VALUES
 -- documento (RN03/RNF09: PDF ou DOCX, ate 5MB). arquivo_url guarda o nome em
 -- <APP_UPLOAD_DIR>/documento (arquivos de seed nao existem em disco: download responde 404)
 -- ---------------------------------------------------------------
+-- tipo e o codigo da lista fechada (Documento.Tipo no backend)
 INSERT INTO documento (candidatura_id, tipo, formato, arquivo_url, tamanho_bytes) VALUES
   ((SELECT id FROM candidatura
     WHERE usuario_id = (SELECT id FROM usuario WHERE email = 'ana.candidata@exemplo.test')
       AND vaga_id = (SELECT id FROM vaga WHERE titulo = 'Desenvolvedor(a) Backend Java')),
-   'RG', 'pdf', 'seed-ana-rg.pdf', 184320),
+   'rg', 'pdf', 'seed-ana-rg.pdf', 184320),
   ((SELECT id FROM candidatura
     WHERE usuario_id = (SELECT id FROM usuario WHERE email = 'ana.candidata@exemplo.test')
       AND vaga_id = (SELECT id FROM vaga WHERE titulo = 'Desenvolvedor(a) Backend Java')),
-   'Comprovante de escolaridade', 'pdf', 'seed-ana-diploma.pdf', 402944),
+   'comprovante_escolaridade', 'pdf', 'seed-ana-diploma.pdf', 402944),
   ((SELECT id FROM candidatura
     WHERE usuario_id = (SELECT id FROM usuario WHERE email = 'carla.candidata@exemplo.test')
       AND vaga_id = (SELECT id FROM vaga WHERE titulo = 'Estagio em Analise de Dados')),
-   'Declaracao de matricula', 'docx', 'seed-carla-matricula.docx', 96256);
+   'comprovante_escolaridade', 'docx', 'seed-carla-matricula.docx', 96256);
 
 -- ---------------------------------------------------------------
 -- analise_ia (RF15: triagem assistida, pontuacao 0-100)

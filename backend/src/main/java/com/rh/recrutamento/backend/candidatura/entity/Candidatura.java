@@ -6,7 +6,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /** Inscricao de um candidato em uma vaga (RF07). RN01: uma por candidato e vaga. */
 @Entity
@@ -31,6 +33,10 @@ public class Candidatura {
     @Column(nullable = false)
     private Status status;
 
+    /** Data e hora da entrevista marcada pelo RH, em UTC. */
+    @Column(name = "entrevista_em")
+    private LocalDateTime entrevistaEm;
+
     @CreationTimestamp
     @Column(name = "data_candidatura", nullable = false, updatable = false)
     private LocalDateTime dataCandidatura;
@@ -48,10 +54,33 @@ public class Candidatura {
         this.status = novo;
     }
 
+    public void agendarEntrevista(Instant quando) {
+        this.entrevistaEm = LocalDateTime.ofInstant(quando, ZoneOffset.UTC);
+    }
+
     /**
      * Etapas do processo seletivo, na ordem usual: inscrito, em_triagem, entrevista e aprovado
      * (ou reprovado); contratado e cancelado encerram. A ordem nao e imposta: o RH pode corrigir
      * um passo, e todo passo fica em historico_status.
      */
-    public enum Status { inscrito, em_triagem, entrevista, aprovado, reprovado, contratado, cancelado }
+    public enum Status {
+        inscrito("Inscrito"),
+        em_triagem("Em análise"),
+        entrevista("Entrevista"),
+        aprovado("Aprovado"),
+        reprovado("Não selecionado"),
+        contratado("Contratado"),
+        cancelado("Cancelado");
+
+        /** Nome mostrado ao candidato nas notificacoes, igual ao do portal. */
+        private final String rotulo;
+
+        Status(String rotulo) {
+            this.rotulo = rotulo;
+        }
+
+        public String getRotulo() {
+            return rotulo;
+        }
+    }
 }

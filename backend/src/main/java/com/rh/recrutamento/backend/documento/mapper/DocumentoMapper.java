@@ -14,5 +14,7 @@ public interface DocumentoMapper {
     @Mapping(target = "vagaTitulo", source = "candidatura.vaga.titulo")
     @Mapping(target = "candidatoId", source = "candidatura.candidato.id")
     @Mapping(target = "candidatoNome", source = "candidatura.candidato.nome")
+    @Mapping(target = "tipo", expression = "java(documento.nomeDoTipo())")
+    @Mapping(target = "tipoCodigo", source = "tipo")
     DocumentoResponse toResponse(Documento documento);
 }

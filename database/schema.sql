@@ -141,6 +141,7 @@ CREATE TABLE candidatura (
     vaga_id          BIGINT UNSIGNED                                                             NOT NULL,
     status           ENUM('inscrito', 'em_triagem', 'entrevista', 'aprovado', 'reprovado',
                           'contratado', 'cancelado')                                              NOT NULL DEFAULT 'inscrito',
+    entrevista_em    DATETIME                                                                    NULL,  -- em UTC
     data_candidatura DATETIME                                                                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_candidatura_usuario_vaga (usuario_id, vaga_id),
     CONSTRAINT fk_candidatura_usuario
@@ -160,11 +161,17 @@ CREATE INDEX idx_candidatura_usuario ON candidatura (usuario_id);
 CREATE TABLE documento (
     id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     candidatura_id BIGINT UNSIGNED                        NOT NULL,
-    tipo           VARCHAR(100)                            NOT NULL,
+    -- lista fechada (Documento.Tipo); nulo so em envio antigo de texto livre sem correspondencia
+    tipo           ENUM('rg', 'cpf', 'ctps', 'titulo_eleitor', 'comprovante_residencia',
+                        'comprovante_escolaridade', 'foto_3x4', 'pis_pasep',
+                        'certidao_nascimento_casamento', 'dados_bancarios',
+                        'certificado_reservista')               NULL,
+    tipo_informado VARCHAR(100)                            NULL,  -- texto livre de antes da V5
     formato        ENUM('pdf', 'docx')                     NOT NULL,
     arquivo_url    VARCHAR(500)                             NOT NULL,
     tamanho_bytes  INT UNSIGNED                             NOT NULL,
     data_envio     DATETIME                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_documento_candidatura_tipo (candidatura_id, tipo),
     CONSTRAINT fk_documento_candidatura
         FOREIGN KEY (candidatura_id) REFERENCES candidatura (id)
         ON DELETE CASCADE ON UPDATE CASCADE,
@@ -214,3 +221,20 @@ CREATE TABLE historico_status (
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_historico_candidatura ON historico_status (candidatura_id);
+
+-- ---------------------------------------------------------------
+-- notificacao (entregue em tempo real por SSE e guardada para depois)
+-- ---------------------------------------------------------------
+CREATE TABLE notificacao (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    usuario_id BIGINT UNSIGNED  NOT NULL,
+    titulo     VARCHAR(150)     NOT NULL,
+    mensagem   VARCHAR(500)     NOT NULL,
+    lida       BOOLEAN          NOT NULL DEFAULT FALSE,
+    criado_em  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notificacao_usuario
+        FOREIGN KEY (usuario_id) REFERENCES usuario (id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_notificacao_usuario ON notificacao (usuario_id, lida);
