@@ -2,7 +2,7 @@
 
 > Histórico do que já foi desenvolvido e em que etapa o frontend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
-> precisar reconstruir o contexto do zero. Última atualização: 2026-09-29.
+> precisar reconstruir o contexto do zero. Última atualização: 2026-10-01.
 
 ## Visual (redesign de 2026-09-29)
 
@@ -17,8 +17,7 @@
   conectado", "Esqueci minha senha", telefone/cidade do cadastro que não eram enviados);
   erros de ações viram aviso em vez de falhar em silêncio; falha no carregamento inicial mostra
   "Tentar novamente" (não fica mais preso em "Carregando"); ações pós-login não recarregam a
-  tela inteira; encerrar vaga pede confirmação; áreas ainda mockadas mostram
-  "Dados de demonstração"; celular tem barra de abas inferior e tabelas viram fichas.
+  tela inteira; encerrar vaga pede confirmação; celular tem barra de abas inferior e tabelas viram fichas.
 
 ## Stack
 
@@ -27,71 +26,115 @@
 - Sem gerenciador de estado externo (só `useState`/`useEffect` locais em `App.tsx`)
 - `npm install && npm run dev` (ver `frontend/README.md`)
 
-## Estado atual: Vaga e Currículo ligados ao backend real; o resto ainda é mock
+## Estado atual: tudo ligado ao backend real, exceto notificações (2026-10-01)
 
 O frontend inteiro está em um único arquivo, [`src/App.tsx`](src/App.tsx), com todas as telas do
-Portal do Candidato e do Painel do RH.
+Portal do Candidato e do Painel do RH. A API é a descrita em `backend/CONTEXTO.md` (seção "Rotas",
+com papel e regra de propriedade de cada endpoint).
 
-### O que já está ligado ao backend real (`http://localhost:8080/api`)
-- Login (`Login`) → `authService.login` → `POST /api/auth/login`; cadastro (`Signup`) →
-  `authService.cadastrar` → `POST /api/usuarios`. Sempre usam `VITE_API_URL`, independente da
-  flag de mock abaixo.
-- **Vagas**: listar/criar/editar/encerrar. `portalService.getJobs/saveJob/closeJob` →
-  [`src/services/rest-portal-service.ts`](src/services/rest-portal-service.ts) →
-  `GET/POST/PUT /vagas` (não existe `DELETE`; "encerrar" é um `PUT` com `status: 'encerrada'`).
-- **Currículo**: `portalService.getProfile/updateProfile` → `GET /curriculos/usuario/{usuarioId}`
-  (404 tratado como "candidato ainda sem currículo") e `POST /curriculos` (primeiro salvamento) ou
-  `PUT /curriculos/{id}` (edições seguintes — usa o **id do currículo**, não o `usuarioId`).
-  > **Pendência (2026-09-29): o contrato do currículo mudou no backend e o front está defasado.**
-  > `formacao` e `experiencias` não são mais texto livre: viraram listas estruturadas
-  > (`formacoes[]` com curso/instituição/dataInicio/dataTermino e `experiencias[]` com
-  > cargo/empresa/dataContratacao/dataDemissao/trabalhoAtual/descricaoAtividades). O currículo
-  > também passou a ter dados pessoais (dataNascimento, sexo, cidade, uf), contato
-  > (numeroContato, perfilLinkedin), `certificacoes`, `idade` (calculada, somente leitura) e
-  > upload de PDF (`POST /curriculos/{id}/arquivo`, multipart, campo `arquivo`).
-  > **Hoje o salvamento do currículo responde 400 em produção** (verificado em 2026-09-29):
-  > o front envia `experiencias` como string e a API espera uma lista, o que quebra a
-  > desserialização (`Requisição malformada ou com valores inválidos.`). Já `formacao`, que virou
-  > campo desconhecido, é apenas ignorado. A tela "Meu currículo" e os tipos em `domain.ts`
-  > precisam ser refeitos para o novo formato antes de voltar a funcionar (ver
-  > `backend/CONTEXTO.md` para o contrato completo).
-- Essas duas últimas só ficam ativas com `VITE_USE_MOCK_API=false` (ver composição híbrida
-  abaixo); o identificador do usuário logado (`{id, nome, email, perfil}`) é guardado em
-  `currentUser` (estado do `App`) e passado explicitamente a cada chamada, já que não há sessão
-  real no backend.
+> **Publicação:** esta versão envia o token JWT em toda chamada. O backend com JWT (commits
+> `f09ceff` a `e952761`) e este frontend precisam ir para a VPS juntos: com o backend novo e o
+> frontend antigo o site para (tudo responde 401), e o contrário também não funciona.
+
+### Sessão (JWT)
+- `POST /auth/login` devolve `{id, nome, email, perfil, token}`. O token fica só em memória
+  (`setAuthToken` em [`src/lib/api-client.ts`](src/lib/api-client.ts)); recarregar a página volta ao
+  login, como antes. O `apiClient` manda `Authorization: Bearer <token>` em toda chamada. O login e
+  o cadastro (`auth-service.ts`) continuam sem token.
+- **401** em qualquer chamada autenticada: o `apiClient` chama o handler registrado com
+  `setUnauthorizedHandler`, o `App` encerra a sessão (`signOut`) e o login mostra "Sua sessão
+  expirou. Entre novamente." Um 401 que chega depois de o usuário já ter saído é ignorado.
+- **403**: não desloga. Ações mostram a `mensagem` do backend no aviso (toast); o carregamento dos
+  inscritos mostra a mensagem na própria tela, com "Tentar novamente".
+- Perfis: `candidato` entra no portal; `rh` e `administrador` entram no painel do RH. O
+  administrador tem a aba extra **Configurações** (esconder a aba é só conveniência: o backend
+  responde 403 a quem não é administrador).
+- O corpo das requisições não leva mais `usuarioId` (currículo) nem `rhId` (vaga): quem age vem do token.
+- O `refresh` do `App` carrega por papel. Candidato: vagas, currículo, candidaturas, documentos e
+  notificações. RH e administrador: só vagas e documentos (currículo e `/candidaturas/minhas`
+  respondem 403 para eles). Os inscritos são carregados na tela de candidatos e os usuários na
+  tela de Configurações. As telas de candidaturas e documentos recarregam os dados ao abrir.
+
+### O que está ligado ao backend real
+Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-service.ts).
+- **Login e cadastro**: `authService` (`POST /auth/login`, `POST /usuarios`). Sempre usam
+  `VITE_API_URL`, independente da flag de mock.
+- **Vagas**: `GET/POST/PUT /vagas` (não existe `DELETE`; "encerrar" é um `PUT` com
+  `status: 'encerrada'`). O backend filtra: o RH vê só as suas, o administrador vê todas.
+- **Currículo**: `GET /curriculos/usuario/{id}` (404 vira "ainda sem currículo"), `POST /curriculos`,
+  `PUT /curriculos/{id}` (usa o id do currículo), PDF em `POST/GET /curriculos/{id}/arquivo`.
+  Listas de experiências e formações, contato, dados pessoais e certificações; erros 400 por campo
+  voltam marcados na tela.
+- **Candidatura (candidato)**: `apply` é `POST /candidaturas {vagaId}`; `getApplications` é
+  `GET /candidaturas/minhas` (traz `vagaTitulo` e `vagaStatus`, então a lista não depende de achar a
+  vaga em `jobs`). Os 409 (vaga fechada, sem currículo, candidatura repetida) aparecem como aviso.
+- **Etapas**: mapa backend para tela em `rest-portal-service.ts` (`statusFromApi`/`statusToApi`):
+  inscrito=Inscrito, em_triagem=Em análise, entrevista=Entrevista, aprovado=Aprovado,
+  reprovado=Não selecionado, contratado=Contratado, cancelado=Cancelado. Contratado e Cancelado
+  só vêm da API (o painel não os oferece) e a tela os exibe normalmente.
+- **Painel do RH, candidatos por vaga**: `getCandidates` é `GET /vagas/{id}/candidaturas`;
+  `updateApplicationStatus` é `PUT /candidaturas/{id}/status`. O menu oferece Ver currículo, Mover
+  para análise, Chamar para entrevista, Aprovar e Não selecionar (com confirmação); a opção igual à
+  etapa atual fica desabilitada. "Ver currículo" abre um diálogo somente leitura
+  (`GET /curriculos/usuario/{candidatoId}`) com botão para baixar o PDF.
+- **Documentos por candidato**: não há lista de documentos pedidos nem revisão; cada documento é um
+  arquivo enviado pelo candidato numa candidatura `aprovado` ou `contratado`.
+  Candidato: `GET /documentos` (os seus) e formulário de envio (`POST /candidaturas/{id}/documentos`,
+  multipart `arquivo` e `tipo`; PDF ou DOCX, 5 MB, tipo livre com sugestões). RH e administrador:
+  `GET /documentos` agrupado por candidato, com Baixar. O botão "Meus documentos" na tela de
+  candidaturas abre a tela do candidato mesmo sem aprovação (estado vazio explica a regra).
+- **Downloads** (`GET /documentos/{id}/arquivo`, `GET /curriculos/{id}/arquivo`): como blob pelo
+  `apiClient` (um link direto não leva o token). O nome do arquivo é montado no cliente
+  (`${tipo}.${formato}` no documento, `arquivo.nomeOriginal` no currículo).
+- **Configurações (administrador)**: `GET /usuarios` (a tela mostra só `rh` e `administrador`),
+  `POST /usuarios` com token (perfil `rh` ou `administrador`, senha de no mínimo 6),
+  `PUT /usuarios/{id}` (editar, trocar perfil e status, bloquear e desbloquear),
+  `DELETE /usuarios/{id}` (com confirmação; 409 quando há vagas ou candidaturas, e a mensagem do
+  backend sugere bloquear). Na linha do próprio administrador, perfil, status, bloquear e excluir
+  ficam desabilitados (o backend responde 403). A tela avisa que mudanças de perfil e status só
+  valem no próximo login da pessoa (o token dura 8 horas).
 
 ### O que ainda roda 100% mockado (localStorage, sem tocar o backend)
-[`src/services/portal-service.ts`](src/services/portal-service.ts) exporta `portalService` como
-uma composição: com `VITE_USE_MOCK_API=false`, `getJobs/saveJob/closeJob/getProfile/updateProfile`
-vão para `restPortalService` e o restante continua em `mockPortalService` (localStorage, chave
-`vagas-plus-mock-db`). Sem a flag (padrão), tudo é mock. Continuam só mockados, pois o backend
-ainda não implementa:
-- Candidatar-se e acompanhar candidaturas (`apply`, `getApplications`, `updateApplicationStatus`)
-- Listagem de candidatos por vaga (`getCandidates`, no painel do RH)
-- Documentos (upload pelo candidato, revisão pelo RH)
-- Notificações
+- **Notificações** (`getNotifications`, `markNotificationsRead`). O sino do candidato mostra dados
+  de exemplo; o backend ainda não tem o endpoint.
+
+### Modo mock
+[`src/services/portal-service.ts`](src/services/portal-service.ts) exporta `portalService`: com
+`VITE_USE_MOCK_API=false` os métodos da API real substituem os do mock; sem a flag (padrão) tudo é
+mock, com as mesmas assinaturas. O mock guarda tudo em `localStorage` (chave
+`vagas-plus-mock-db-v2`) e inclui candidaturas, documentos e usuários de exemplo. O login e o
+cadastro sempre falam com a API, então até o mock precisa de um backend para entrar.
+
+### Como testar localmente
+- `frontend/.env.development` (versionado) aponta `VITE_API_URL=/api`, que o Vite repassa para a
+  VPS (`vite.config.ts`). Enquanto a VPS não tiver o backend com JWT, teste com um backend local:
+  crie `frontend/.env.development.local` (ignorado pelo git) com
+  `VITE_API_URL=http://localhost:8081/api`.
+- O backend local precisa de um MySQL próprio com o schema do Flyway e o `database/seed.sql`
+  (senha dos usuários de teste `senha123`, e-mails `@exemplo.test`), e de `JWT_SECRET`. O CORS
+  padrão do backend libera `http://localhost:5173`.
+- Para a candidata Ana aparecer aprovada na vaga Backend Java (o seed a deixa em entrevista), mude
+  a etapa dela pelo painel do RH (rita.rh) ou por `PUT /candidaturas/1/status`.
 
 ## Telas implementadas (todas em `App.tsx`)
 
-- **Login** / **Signup** — reais (ver acima)
-- **Portal do candidato**: Vagas (lista + filtro por modalidade + busca por título; só mostra
-  `status === 'aberta'`), Detalhe da vaga + candidatura (mock), Sucesso pós-candidatura, Meu
-  currículo (edição — real), Minhas candidaturas (mock), Documentos (envio, mock)
-- **Painel do RH**: Gerenciar vagas (lista + criar/editar via dialog + encerrar — real; abas
-  Abertas/Rascunhos/Encerradas/Todas), Candidatos por vaga (mock, com "banner" de triagem por IA —
-  visual apenas, sem IA real), Documentos (revisão aprovar/rejeitar, mock)
+- **Login** / **Signup**: reais.
+- **Portal do candidato**: Vagas (lista, filtro por modalidade e busca; só `aberta`), Detalhe da vaga
+  e candidatura, Sucesso, Meu currículo, Minhas candidaturas (status real) e Documentos (envio e
+  lista dos próprios).
+- **Painel do RH**: Vagas (criar, editar, encerrar), Candidatos por vaga (inscritos reais, etapas,
+  currículo), Documentos agrupados por candidato e, só para o administrador, Configurações.
 
 ## O que ainda NÃO existe no frontend
 
-- Triagem por IA é só um elemento visual estático, sem chamada nenhuma
-- Recuperação de senha (RF03) não tem tela
-- Área administrativa (perfil `administrador`) — login mostra mensagem "ainda não disponível" e para aí
-- Fluxo de "publicar rascunho" — uma vaga criada pelo diálogo "Nova vaga" já nasce com
-  `status: 'aberta'`; não há UI para criar como rascunho e publicar depois
-- Sessão persistida entre reloads — um F5 sempre volta para a tela de login
-
-## Próximo passo natural
-
-Ligar candidatura, documentos e notificações assim que o backend implementar esses endpoints,
-seguindo o mesmo padrão usado para Vaga/Currículo (composição em `portal-service.ts`, tipos
-alinhados aos DTOs reais).
+- Triagem por IA (RF15): o backend não tem análise real. A coluna Aderência e o aviso de triagem
+  saíram da tela de candidatos; voltam quando existir. Um texto do passo a passo da tela
+  "Candidatura enviada" ainda cita "triagem assistida" e deveria ser revisto.
+- Recuperação de senha (RF03) não tem tela.
+- Solicitação de documentos pelo RH (RF14) e revisão (aprovar ou pedir ajuste) de documento.
+- Atalho `GET /documentos?candidatoId=` a partir da tela de candidatos: o endpoint existe, mas a tela
+  de documentos já agrupa por candidato e não usa o filtro.
+- Fluxo de "publicar rascunho": uma vaga criada pelo diálogo "Nova vaga" já nasce com
+  `status: 'aberta'`.
+- Sessão persistida entre reloads: um F5 sempre volta para a tela de login.
+- Renovação do token: ao expirar (8 horas), a pessoa entra de novo.

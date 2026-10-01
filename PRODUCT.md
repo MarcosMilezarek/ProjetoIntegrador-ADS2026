@@ -23,7 +23,7 @@ Um único currículo reaproveitado em todas as candidaturas, acompanhamento de s
 ## Operating Context
 
 - Fluxo: RH cadastra vaga → candidato vê e se candidata (status `inscrito`) → RH consulta inscritos e pode pedir triagem por IA → RH atualiza status → se aprovado, candidato recebe pedido de documentos.
-- Produção: https://piads2026-rh.duckdns.org/ (frontend estático servido pelo nginx, API em `/api`).
+- Produção: https://upteam.duckdns.org/ (frontend estático servido pelo nginx, API em `/api`).
 - Documentação de requisitos, regras e casos de uso em `modelagem/`.
 
 ## Capabilities and Constraints

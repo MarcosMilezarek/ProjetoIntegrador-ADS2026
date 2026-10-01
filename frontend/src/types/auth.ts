@@ -11,6 +11,8 @@ export interface LoginResponse {
   nome: string;
   email: string;
   perfil: Perfil;
+  /** JWT para `Authorization: Bearer`. Vale 8 horas. */
+  token: string;
 }
 
 export interface SignupRequest {
@@ -20,6 +22,6 @@ export interface SignupRequest {
 }
 
 /** Resposta de POST/GET /usuarios. */
-export interface UsuarioResponse extends LoginResponse {
+export interface UsuarioResponse extends Omit<LoginResponse, 'token'> {
   status: StatusUsuario;
 }

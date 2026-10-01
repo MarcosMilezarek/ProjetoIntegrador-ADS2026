@@ -129,18 +129,18 @@ autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os 
 
 ## Infraestrutura / Deploy (VPS Google Cloud)
 
-Site em produção: **https://piads2026-rh.duckdns.org/** (API em `/api`, ex. `https://piads2026-rh.duckdns.org/api/vagas`)
+Site em produção: **https://upteam.duckdns.org/** (API em `/api`, ex. `https://upteam.duckdns.org/api/vagas`)
 
 - **VM**: `cloudvmads`, zona `southamerica-east1-c`, projeto `project-9558c67f-ba71-45f5-82b`, IP estático `35.215.251.22`
 - **SSH**: `gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9558c67f-ba71-45f5-82b"` (precisa do Google Cloud SDK instalado e autenticado — `gcloud auth login`)
-- **Domínio**: DuckDNS (`piads2026-rh.duckdns.org` apontando pro IP estático) + certificado Let's Encrypt via Certbot (renovação automática)
+- **Domínio**: DuckDNS (`upteam.duckdns.org` apontando pro IP estático; antes era `piads2026-rh.duckdns.org`, que deixou de existir em 2026-09-29) + certificado Let's Encrypt via Certbot (renovação automática). Ao trocar de domínio: ajustar `server_name` em `/etc/nginx/sites-available/app`, emitir o certificado (`certbot --nginx -d <dominio> --redirect`) e atualizar `CORS_ALLOWED_ORIGINS` no `backend.service` — sem o CORS o cadastro no site dá 403
 - **Serviços na VM**:
   - MySQL local (só aceita conexão de `localhost`/`127.0.0.1`, não exposto na internet) — banco `selecao_rh`, usuário `appuser`
   - Backend: serviço systemd `backend` (`/etc/systemd/system/backend.service`), roda o jar de `/opt/app/backend/target/backend-0.0.1-SNAPSHOT.jar` com `--spring.profiles.active=local`, reinicia sozinho se cair
   - Frontend: build estático (`npm run build`) em `/opt/app/frontend/dist`, servido pelo nginx
   - Nginx: serve o frontend e faz proxy de `/api/` pro backend (porta 8080 interna); HTTP redireciona pra HTTPS. Config em `/etc/nginx/sites-available/app` (fora do git). O `location /api/` tem `client_max_body_size 6m;` (o padrão de 1MB do nginx barraria o upload de PDF de até 5MB com 413) — se recriar a VM, reaplicar
 - **Credenciais do banco na VM**: em `/opt/app/backend/src/main/resources/application-local.properties` (gitignored, carregado via `spring.config.import=optional:classpath:application-local.properties`) — **atenção**: por ser carregado via `classpath:`, esse arquivo fica embutido dentro do `.jar`; editar o arquivo sozinho não basta, é preciso rebuildar (`./mvnw clean package`) pra pegar a mudança
-- **CORS de produção**: variável de ambiente `CORS_ALLOWED_ORIGINS` setada no `backend.service` (`Environment=`), não no arquivo de properties — hoje só tem `https://piads2026-rh.duckdns.org`
+- **CORS de produção**: variável de ambiente `CORS_ALLOWED_ORIGINS` setada no `backend.service` (`Environment=`), não no arquivo de properties — hoje só tem `https://upteam.duckdns.org`
 - **Uploads (PDF do currículo)**: variável `APP_UPLOAD_DIR` no `backend.service`, apontando para `/opt/app/uploads` (fora do diretório do build, para o rebuild não apagar os arquivos). Sem essa variável o padrão é `./uploads`, relativo ao diretório de trabalho do serviço
 - **Documentos de contratação**: mesma variável, subpasta `documento` (`/opt/app/uploads/documento`)
 - **JWT**: variável `JWT_SECRET` no `backend.service` (`Environment=JWT_SECRET=...`; gere com `openssl rand -base64 48`). Obrigatória desde 2026-09-30: sem ela o backend não sobe. Trocar o segredo invalida todos os tokens emitidos (todos precisam logar de novo)

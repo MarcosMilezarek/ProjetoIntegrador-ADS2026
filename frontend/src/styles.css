@@ -261,8 +261,6 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
 .chip[data-tone="red"]::before { background: var(--tone-red); }
 .chip[data-tone="outline"]::before { background: transparent; border: 1.5px solid var(--tone-green); }
 .chip[data-tone="dashed"]::before { background: transparent; border: 1.5px dashed var(--ink-2); }
-.demo-note { display: flex; align-items: center; gap: 8px; margin: -14px 0 20px; color: var(--ink-2); font-size: 0.8125rem; }
-.demo-note::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1.5px dashed var(--ink-2); }
 
 /* ---------- Páginas ---------- */
 .shell { position: relative; min-height: 100dvh; }
@@ -388,9 +386,6 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
 .save-bar[data-dirty="true"] span::before { background: var(--tone-yellow); }
 
 /* ---------- Documentos ---------- */
-.doc-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 20px; margin-bottom: 18px; }
-.doc-summary p { grid-column: 1 / -1; color: var(--ink-2); font-size: 0.9375rem; }
-.doc-summary strong { font-family: var(--font-display); font-size: 1.375rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .doc-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 16px var(--pad-x); border-top: 1px solid var(--line); }
 .doc-side { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 .doc-side .chip { order: 2; }
@@ -422,12 +417,9 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
 .person { display: flex; align-items: center; gap: 12px; }
 .person strong, .person small { display: block; }
 .person .initials { background: var(--brand-soft); color: var(--brand-text); box-shadow: none; }
-.match { display: flex; align-items: center; gap: 10px; min-width: 150px; }
-.match [data-slot="progress"] { width: 96px; }
-.match strong { font-variant-numeric: tabular-nums; }
-.ai-note { display: flex; align-items: flex-start; gap: 10px; margin: -6px 0 14px; color: var(--ink-2); font-size: 0.875rem; line-height: 1.5; }
-.ai-note svg { width: 17px; height: 17px; margin-top: 2px; flex: 0 0 auto; color: var(--brand-text); }
-.ai-note strong { font-weight: 600; color: var(--ink); }
+.info-note { display: flex; align-items: flex-start; gap: 10px; margin: -6px 0 14px; color: var(--ink-2); font-size: 0.875rem; line-height: 1.5; }
+.info-note svg { width: 17px; height: 17px; margin-top: 2px; flex: 0 0 auto; color: var(--brand-text); }
+.info-note strong { font-weight: 600; color: var(--ink); }
 .job-picker { min-width: min(100%, 320px); }
 .dialog-form { display: grid; gap: 16px; }
 .job-dialog { width: min(720px, calc(100% - 24px)) !important; max-width: 720px !important; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 26px !important; }
@@ -466,7 +458,7 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
   .glass-nav { width: calc(100% - 24px); max-width: none; justify-content: space-between; gap: 12px; padding: 6px 6px 6px 14px; }
   .topnav { display: none; }
   .profile-trigger > span:first-child { display: none; }
-  .tabbar { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 6px; border-radius: 20px; background: var(--glass); -webkit-backdrop-filter: blur(50px) saturate(1.6); backdrop-filter: blur(50px) saturate(1.6); }
+  .tabbar { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 6px; border-radius: 20px; background: var(--glass); -webkit-backdrop-filter: blur(50px) saturate(1.6); backdrop-filter: blur(50px) saturate(1.6); }
   .tabbar button { display: grid; place-content: center; justify-items: center; gap: 2px; min-height: 52px; border: 0; border-radius: 14px; background: none; color: var(--ink-2); font-size: 0.75rem; font-weight: 500; cursor: pointer; }
   .tabbar button svg { width: 21px; height: 21px; }
   .tabbar button[aria-current="page"] { color: var(--brand-text); background: var(--brand-soft); font-weight: 600; }
@@ -615,4 +607,33 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
   .file-card > [data-slot="button"] { grid-column: 1 / -1; }
   .repeat-item { padding: 14px; }
   .repeat-head > [data-slot="button"] { min-height: 44px; }
+}
+
+/* ---------- Documentos por candidato, currículo do inscrito e Configurações ---------- */
+.doc-form { margin-bottom: 18px; }
+.doc-form .dialog-form { margin-top: 18px; }
+.file-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.file-pick span { color: var(--ink-2); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.doc-form-actions { display: flex; justify-content: flex-end; }
+.doc-group-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; padding: 18px var(--pad-x); }
+.doc-group-head small { color: var(--ink-2); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.resume-view { display: grid; gap: 22px; }
+.resume-view section { display: grid; gap: 10px; }
+.resume-view h3 { font-family: var(--font-display); font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; }
+.resume-view p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.resume-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 0.9375rem; }
+.resume-facts dt { color: var(--ink-2); }
+.resume-facts dd { margin: 0; overflow-wrap: anywhere; }
+.resume-item { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--glass-field); }
+.resume-item strong { font-weight: 600; }
+.resume-item small { color: var(--ink-2); font-size: 0.8125rem; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag.static { padding-right: 11px; }
+@media (max-width: 640px) {
+  .doc-form-actions > [data-slot="button"] { width: 100%; }
+}
+@media (max-width: 767px) {
+  /* Administrador: 4 abas na barra inferior */
+  .tabbar { grid-auto-columns: minmax(0, 1fr); }
+  .tabbar:has(> button:nth-child(4)) button { font-size: 0.6875rem; }
 }

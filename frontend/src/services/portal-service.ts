@@ -4,11 +4,12 @@ import type {
   Candidate,
   CandidateDocument,
   CandidateProfile,
-  DocumentStatus,
   Job,
   JobStatus,
   NewJobInput,
   NotificationItem,
+  StaffUser,
+  StaffUserInput,
 } from '@/types/domain';
 import { emptyProfile, restPortalService } from '@/services/rest-portal-service';
 
@@ -43,17 +44,20 @@ const seedProfile: CandidateProfile = {
 const candidateIdentity = { id: 'candidate-marina', name: 'Marina Souza Andrade', email: 'marina.souza@email.com' };
 
 const seedApplications: Application[] = [
-  { id: 'app-java', jobId: 'job-java', candidateId: candidateIdentity.id, submittedAt: '05/08/2026', status: 'reviewing', match: 92 },
-  { id: 'app-data', jobId: 'job-data', candidateId: candidateIdentity.id, submittedAt: '02/08/2026', status: 'interview', match: 87 },
-  { id: 'app-hr', jobId: 'job-hr', candidateId: candidateIdentity.id, submittedAt: '28/07/2026', status: 'approved', match: 68 },
+  { id: 'app-java', jobId: 'job-java', jobTitle: 'Desenvolvedor(a) Back-end Java', jobStatus: 'aberta', candidateId: candidateIdentity.id, submittedAt: '05/08/2026', status: 'reviewing' },
+  { id: 'app-data', jobId: 'job-data', jobTitle: 'Analista de Dados Jr.', jobStatus: 'aberta', candidateId: candidateIdentity.id, submittedAt: '02/08/2026', status: 'interview' },
+  { id: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', jobStatus: 'aberta', candidateId: candidateIdentity.id, submittedAt: '28/07/2026', status: 'approved' },
 ];
 
 const seedDocuments: CandidateDocument[] = [
-  { id: 'doc-rg', label: 'RG (frente e verso)', filename: 'rg_marina_souza.pdf', status: 'approved', updatedAt: '06/08/2026' },
-  { id: 'doc-cpf', label: 'CPF', filename: 'cpf_marina_souza.pdf', status: 'approved', updatedAt: '06/08/2026' },
-  { id: 'doc-address', label: 'Comprovante de residência', filename: 'comprovante_residencia.pdf', status: 'reviewing', updatedAt: '12/08/2026' },
-  { id: 'doc-diploma', label: 'Diploma ou declaração de matrícula', status: 'pending' },
-  { id: 'doc-bank', label: 'Dados bancários (comprovante)', status: 'pending' },
+  { id: 'doc-rg', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'RG', format: 'pdf', sizeBytes: 184320, sentAt: '06/08/2026' },
+  { id: 'doc-cpf', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'CPF', format: 'pdf', sizeBytes: 90112, sentAt: '06/08/2026' },
+];
+
+const seedUsers: StaffUser[] = [
+  { id: 'user-admin', name: 'Administrador Geral', email: 'admin@exemplo.test', role: 'administrador', status: 'ativo' },
+  { id: 'user-rita', name: 'Rita Nogueira', email: 'rita.rh@exemplo.test', role: 'rh', status: 'ativo' },
+  { id: 'user-paulo', name: 'Paulo Fontes', email: 'paulo.rh@exemplo.test', role: 'rh', status: 'ativo' },
 ];
 
 const seedNotifications: NotificationItem[] = [
@@ -61,14 +65,14 @@ const seedNotifications: NotificationItem[] = [
   { id: 'n2', title: 'Documentos pendentes', description: 'Envie dois documentos para seguir com sua contratação.', read: false },
 ];
 
-type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[] };
-const storeKey = 'vagas-plus-mock-db';
+type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[]; users: StaffUser[] };
+const storeKey = 'vagas-plus-mock-db-v2';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function getStore(): Store {
   const saved = localStorage.getItem(storeKey);
   if (saved) return JSON.parse(saved) as Store;
-  const initial = { jobs: seedJobs, profile: seedProfile, applications: seedApplications, documents: seedDocuments, notifications: seedNotifications };
+  const initial = { jobs: seedJobs, profile: seedProfile, applications: seedApplications, documents: seedDocuments, notifications: seedNotifications, users: seedUsers };
   localStorage.setItem(storeKey, JSON.stringify(initial));
   return clone(initial);
 }
@@ -77,10 +81,10 @@ function delay<T>(value: T): Promise<T> { return new Promise((resolve) => window
 
 export interface PortalService {
   getJobs(): Promise<Job[]>;
-  saveJob(input: NewJobInput & { id?: string; status?: JobStatus }, rhId: string): Promise<Job>;
+  saveJob(input: NewJobInput & { id?: string; status?: JobStatus }): Promise<Job>;
   closeJob(id: string): Promise<Job>;
   getProfile(usuarioId: string): Promise<CandidateProfile>;
-  updateProfile(usuarioId: string, profile: CandidateProfile): Promise<CandidateProfile>;
+  updateProfile(profile: CandidateProfile): Promise<CandidateProfile>;
   uploadResumeFile(curriculoId: string, file: File): Promise<CandidateProfile>;
   downloadResumeFile(curriculoId: string): Promise<Blob>;
   getApplications(): Promise<Application[]>;
@@ -88,8 +92,12 @@ export interface PortalService {
   getCandidates(jobId: string): Promise<Candidate[]>;
   updateApplicationStatus(id: string, status: ApplicationStatus): Promise<Application>;
   getDocuments(): Promise<CandidateDocument[]>;
-  uploadDocument(id: string, file: File): Promise<CandidateDocument>;
-  reviewDocument(id: string, status: Extract<DocumentStatus, 'approved' | 'rejected'>): Promise<CandidateDocument>;
+  uploadDocument(applicationId: string, type: string, file: File): Promise<CandidateDocument>;
+  downloadDocument(id: string): Promise<Blob>;
+  getUsers(): Promise<StaffUser[]>;
+  createUser(input: StaffUserInput): Promise<StaffUser>;
+  updateUser(id: string, input: StaffUserInput): Promise<StaffUser>;
+  deleteUser(id: string): Promise<void>;
   getNotifications(): Promise<NotificationItem[]>;
   markNotificationsRead(): Promise<void>;
 }
@@ -116,7 +124,7 @@ export const mockPortalService: PortalService = {
   },
   // O banco local pode ter sido gravado no formato antigo do currículo; completa o que faltar.
   async getProfile() { return delay({ ...emptyProfile, ...getStore().profile, formacoes: getStore().profile.formacoes ?? [], experiencias: getStore().profile.experiencias ?? [] }); },
-  async updateProfile(_usuarioId, profile) {
+  async updateProfile(profile) {
     const store = getStore();
     store.profile = { ...profile, id: profile.id ?? 'curriculo-local', updatedAt: today };
     saveStore(store);
@@ -134,25 +142,53 @@ export const mockPortalService: PortalService = {
     const store = getStore();
     const existing = store.applications.find((app) => app.jobId === jobId);
     if (existing) return delay(existing);
-    const application: Application = { id: crypto.randomUUID(), jobId, candidateId: candidateIdentity.id, submittedAt: today, status: 'applied', match: 82 };
+    const job = store.jobs.find((item) => item.id === jobId);
+    if (!job) throw new Error('Vaga não encontrada');
+    const application: Application = { id: crypto.randomUUID(), jobId, jobTitle: job.title, jobStatus: job.status, candidateId: candidateIdentity.id, submittedAt: today, status: 'applied' };
     store.applications = [application, ...store.applications];
     saveStore(store);
     return delay(application);
   },
   async getCandidates(jobId) {
     const store = getStore();
-    const realCandidate: Candidate[] = store.applications.filter((app) => app.jobId === jobId).map((app) => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, match: app.match, status: app.status }));
-    const samples: Candidate[] = [
-      { id: 'candidate-rafael', name: 'Rafael Lima Costa', email: 'rafael.lima@email.com', applicationId: 'sample-rafael', submittedAt: '03/08/2026', match: 87, status: 'reviewing' },
-      { id: 'candidate-juliana', name: 'Juliana Ferreira Melo', email: 'juliana.melo@email.com', applicationId: 'sample-juliana', submittedAt: '02/08/2026', match: 68, status: 'reviewing' },
-      { id: 'candidate-caio', name: 'Caio Henrique Alves', email: 'caio.alves@email.com', applicationId: 'sample-caio', submittedAt: '01/08/2026', match: 61, status: 'interview' },
-    ];
-    return delay([...realCandidate, ...samples].sort((a, b) => b.match - a.match));
+    return delay(store.applications.filter((app) => app.jobId === jobId).map((app): Candidate => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, status: app.status })));
   },
   async updateApplicationStatus(id, status) { const store = getStore(); const application = store.applications.find((item) => item.id === id); if (!application) throw new Error('Candidatura não encontrada'); application.status = status; saveStore(store); return delay(application); },
   async getDocuments() { return delay(getStore().documents); },
-  async uploadDocument(id, file) { const store = getStore(); const document = store.documents.find((item) => item.id === id)!; document.filename = file.name; document.updatedAt = today; document.status = 'reviewing'; saveStore(store); return delay(document); },
-  async reviewDocument(id, status) { const store = getStore(); const document = store.documents.find((item) => item.id === id)!; document.status = status; document.updatedAt = today; saveStore(store); return delay(document); },
+  async uploadDocument(applicationId, type, file) {
+    const store = getStore();
+    const application = store.applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error('Candidatura não encontrada.');
+    if (application.status !== 'approved' && application.status !== 'hired') throw new Error('Os documentos só podem ser enviados depois da aprovação na vaga.');
+    const document: CandidateDocument = { id: crypto.randomUUID(), applicationId, jobId: application.jobId, jobTitle: application.jobTitle, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type, format: file.name.split('.').pop()?.toLowerCase() ?? 'pdf', sizeBytes: file.size, sentAt: today };
+    store.documents = [document, ...store.documents];
+    saveStore(store);
+    return delay(document);
+  },
+  async downloadDocument() { return new Blob(['Arquivo de demonstração'], { type: 'application/pdf' }); },
+  async getUsers() { return delay(getStore().users); },
+  async createUser(input) {
+    const store = getStore();
+    if (store.users.some((item) => item.email.toLowerCase() === input.email.trim().toLowerCase())) throw new Error('Já existe um usuário com este e-mail.');
+    const user: StaffUser = { id: crypto.randomUUID(), name: input.name.trim(), email: input.email.trim(), role: input.role, status: input.status };
+    store.users = [...store.users, user];
+    saveStore(store);
+    return delay(user);
+  },
+  async updateUser(id, input) {
+    const store = getStore();
+    if (!store.users.some((item) => item.id === id)) throw new Error('Usuário não encontrado.');
+    const user: StaffUser = { id, name: input.name.trim(), email: input.email.trim(), role: input.role, status: input.status };
+    store.users = store.users.map((item) => item.id === id ? user : item);
+    saveStore(store);
+    return delay(user);
+  },
+  async deleteUser(id) {
+    const store = getStore();
+    store.users = store.users.filter((item) => item.id !== id);
+    saveStore(store);
+    return delay(undefined);
+  },
   async getNotifications() { return delay(getStore().notifications); },
   async markNotificationsRead() { const store = getStore(); store.notifications = store.notifications.map((notification) => ({ ...notification, read: true })); saveStore(store); return delay(undefined); },
 };
@@ -167,5 +203,16 @@ export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API ==
       updateProfile: restPortalService.updateProfile,
       uploadResumeFile: restPortalService.uploadResumeFile,
       downloadResumeFile: restPortalService.downloadResumeFile,
+      getApplications: restPortalService.getApplications,
+      apply: restPortalService.apply,
+      getCandidates: restPortalService.getCandidates,
+      updateApplicationStatus: restPortalService.updateApplicationStatus,
+      getDocuments: restPortalService.getDocuments,
+      uploadDocument: restPortalService.uploadDocument,
+      downloadDocument: restPortalService.downloadDocument,
+      getUsers: restPortalService.getUsers,
+      createUser: restPortalService.createUser,
+      updateUser: restPortalService.updateUser,
+      deleteUser: restPortalService.deleteUser,
     }
   : mockPortalService;
