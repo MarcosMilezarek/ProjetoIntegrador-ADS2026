@@ -180,6 +180,10 @@ Se o histórico do GitHub for reescrito (force push), o `git pull` da VM falha. 
 
 A autenticação JWT foi publicada na VPS em 2026-10-01, junto com o frontend que envia o token. `JWT_SECRET` está no `backend.service`. Antes dessa publicação, o jar e o `dist` anteriores foram guardados em `/opt/backup` (`backend-antes-jwt.jar`, `dist-antes-jwt` e `sha-antes-jwt.txt`), caso seja preciso voltar atrás.
 
+## Publicação das notificações, entrevista e tipos de documento
+
+Publicada na VPS em 2026-10-01 (backend e frontend juntos), com as migrations V3 a V5 aplicadas no banco de produção. Antes, foram guardados em `/opt/backup`: `selecao_rh-antes-v5.sql` (dump do banco), `backend-antes-v5.jar`, `dist-antes-v5`, `uploads-antes-v5.tgz` e `sha-antes-v5.txt`. Para voltar atrás é preciso restaurar o dump junto com o jar, porque o jar antigo não funciona com o schema V5.
+
 ## Como rodar
 
 ```bash
