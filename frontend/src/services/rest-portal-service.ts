@@ -1,6 +1,6 @@
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
-import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, Job, JobStatus, NewJobInput, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentType, Job, JobStatus, NewJobInput, NotificationEvent, NotificationItem, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
 import type { Perfil, StatusUsuario } from '@/types/auth';
 
 /** Formato bruto retornado por /vagas (VagaResponse do backend). */
@@ -52,6 +52,8 @@ interface CandidaturaResponseDTO {
   candidatoEmail: string;
   status: string;
   dataCandidatura: string;
+  /** Instante em UTC (ex.: 2026-10-20T18:00:00Z) ou nulo. */
+  entrevistaEm: string | null;
 }
 
 /** Formato bruto de /documentos (DocumentoResponse do backend). */
@@ -63,9 +65,38 @@ interface DocumentoResponseDTO {
   candidatoId: number;
   candidatoNome: string;
   tipo: string;
+  tipoCodigo: string | null;
   formato: string;
   tamanhoBytes: number;
   dataEnvio: string;
+}
+
+/** Formato bruto de /documentos/tipos. */
+interface TipoDocumentoDTO {
+  codigo: string;
+  nome: string;
+  obrigatorio: boolean;
+  condicao: string | null;
+}
+
+/** Formato bruto de /candidaturas/{id}/documentos. */
+interface DocumentosDaCandidaturaDTO {
+  candidaturaId: number;
+  candidatoNome: string;
+  vagaTitulo: string;
+  enviadosExigidos: number;
+  totalExigidos: number;
+  enviados: DocumentoResponseDTO[];
+  pendentes: TipoDocumentoDTO[];
+}
+
+/** Formato bruto de /notificacoes (também é o dado de cada evento do fluxo em tempo real). */
+interface NotificacaoDTO {
+  id: number;
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  criadoEm: string;
 }
 
 /** Formato bruto de /usuarios (UsuarioResponse do backend). */
@@ -109,6 +140,7 @@ function applicationFromResponse(item: CandidaturaResponseDTO): Application {
     candidateId: String(item.candidatoId),
     submittedAt: formatDate(item.dataCandidatura),
     status: statusFromApi[item.status] ?? 'applied',
+    interviewAt: item.entrevistaEm ?? undefined,
   };
 }
 
@@ -120,6 +152,7 @@ function candidateFromResponse(item: CandidaturaResponseDTO): Candidate {
     applicationId: String(item.id),
     submittedAt: formatDate(item.dataCandidatura),
     status: statusFromApi[item.status] ?? 'applied',
+    interviewAt: item.entrevistaEm ?? undefined,
   };
 }
 
@@ -132,11 +165,56 @@ function documentFromResponse(item: DocumentoResponseDTO): CandidateDocument {
     candidateId: String(item.candidatoId),
     candidateName: item.candidatoNome,
     type: item.tipo,
+    typeCode: item.tipoCodigo,
     format: item.formato,
     sizeBytes: item.tamanhoBytes,
     sentAt: formatDate(item.dataEnvio),
   };
 }
+
+function documentTypeFromResponse(item: TipoDocumentoDTO): DocumentType {
+  return { code: item.codigo, name: item.nome, required: item.obrigatorio, condition: item.condicao };
+}
+
+function notificationFromResponse(item: NotificacaoDTO): NotificationItem {
+  return { id: String(item.id), title: item.titulo, description: item.mensagem, read: item.lida };
+}
+
+/** Espera `ms`, ou menos se `signal` abortar. */
+function wait(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = window.setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => { window.clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
+/** Lê um fluxo text/event-stream: blocos separados por linha em branco, linhas "event:" e "data:"; as que começam com ":" (ping) são ignoradas. */
+async function readEvents(response: Response, onEvent: (name: string, data: string) => void) {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() ?? '';
+    for (const block of blocks) {
+      let name = 'message';
+      const data: string[] = [];
+      for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith(':')) continue;
+        if (line.startsWith('event:')) name = line.slice(6).trim();
+        else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+      }
+      if (data.length > 0) onEvent(name, data.join('\n'));
+    }
+  }
+}
+
+/** Esperas entre tentativas de reconexão do fluxo de notificações (a última se repete). */
+const reconnectDelays = [1000, 2000, 5000, 10000, 30000];
 
 function userFromResponse(item: UsuarioResponseDTO): StaffUser {
   return { id: String(item.id), name: item.nome, email: item.email, role: item.perfil as StaffUser['role'], status: item.status };
@@ -303,6 +381,55 @@ export const restPortalService = {
   },
 
   downloadDocument: (id: string) => apiClient<Blob>(`/documentos/${id}/arquivo`, {}, { as: 'blob' }),
+
+  getDocumentTypes: async () => (await apiClient<TipoDocumentoDTO[]>('/documentos/tipos')).map(documentTypeFromResponse),
+
+  getDocumentBoard: async (applicationId: string): Promise<DocumentBoard> => {
+    const board = await apiClient<DocumentosDaCandidaturaDTO>(`/candidaturas/${applicationId}/documentos`);
+    return {
+      applicationId: String(board.candidaturaId),
+      candidateName: board.candidatoNome,
+      jobTitle: board.vagaTitulo,
+      sentRequired: board.enviadosExigidos,
+      totalRequired: board.totalExigidos,
+      sent: board.enviados.map(documentFromResponse),
+      pending: board.pendentes.map(documentTypeFromResponse),
+    };
+  },
+
+  /** `dateTime` é o valor de um input datetime-local (ex.: "2026-10-20T15:00"), no horário de Brasília (sem horário de verão). */
+  scheduleInterview: async (applicationId: string, dateTime: string) =>
+    applicationFromResponse(await apiClient<CandidaturaResponseDTO>(`/candidaturas/${applicationId}/entrevista`, { method: 'PUT', body: JSON.stringify({ dataHora: `${dateTime.slice(0, 16)}:00-03:00` }) })),
+
+  getNotifications: async () => (await apiClient<NotificacaoDTO[]>('/notificacoes')).map(notificationFromResponse),
+
+  markNotificationsRead: () => apiClient<void>('/notificacoes/lidas', { method: 'PUT' }),
+
+  markNotificationRead: async (id: string) => { await apiClient<NotificacaoDTO>(`/notificacoes/${id}/lida`, { method: 'PUT' }); },
+
+  /**
+   * Notificações em tempo real (SSE) lidas com fetch, para o token ir no cabeçalho e não na URL.
+   * Reconecta com espera crescente quando o fluxo cai; para quando `signal` aborta ou a API responde 401
+   * (aí o `apiClient` já avisa o App para encerrar a sessão).
+   */
+  subscribeNotifications: async (onEvent: (event: NotificationEvent) => void, signal: AbortSignal) => {
+    let attempt = 0;
+    while (!signal.aborted) {
+      try {
+        const response = await apiClient<Response>('/notificacoes/stream', { signal, headers: { Accept: 'text/event-stream' } }, { as: 'stream' });
+        await readEvents(response, (name, data) => {
+          if (name === 'conectado') { attempt = 0; onEvent({ type: 'connected' }); return; }
+          if (name !== 'notificacao') return;
+          try { onEvent({ type: 'notification', item: notificationFromResponse(JSON.parse(data) as NotificacaoDTO) }); } catch { /* evento malformado: ignora */ }
+        });
+      } catch (error) {
+        if (signal.aborted || (error instanceof ApiError && error.status === 401)) return;
+      }
+      if (signal.aborted) return;
+      await wait(reconnectDelays[Math.min(attempt, reconnectDelays.length - 1)], signal);
+      attempt += 1;
+    }
+  },
 
   /** Só o RH e os administradores: os candidatos ficam de fora da lista de Configurações. */
   getUsers: async () => (await apiClient<UsuarioResponseDTO[]>('/usuarios')).filter((item) => item.perfil !== 'candidato').map(userFromResponse),

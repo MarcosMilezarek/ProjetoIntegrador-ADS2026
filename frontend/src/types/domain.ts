@@ -73,6 +73,8 @@ export type Application = {
   candidateId: string;
   submittedAt: string;
   status: ApplicationStatus;
+  /** Data e hora da entrevista marcada pelo RH, em UTC (ISO 8601). Mostrar no horário de Brasília. */
+  interviewAt?: string;
   notes?: string;
 };
 
@@ -83,6 +85,7 @@ export type Candidate = {
   applicationId: string;
   submittedAt: string;
   status: ApplicationStatus;
+  interviewAt?: string;
 };
 
 /** Arquivo enviado pelo candidato numa candidatura aprovada. Espelha a resposta de /documentos. */
@@ -93,12 +96,34 @@ export type CandidateDocument = {
   jobTitle: string;
   candidateId: string;
   candidateName: string;
-  /** Texto livre, ex.: "RG" ou "Comprovante de residência". */
+  /** Nome para exibir, ex.: "Comprovante de residência". */
   type: string;
+  /** Código da lista de tipos (`rg`); nulo em envio antigo de texto livre que não correspondeu a nenhum tipo. */
+  typeCode: string | null;
   /** Extensão do arquivo: `pdf` ou `docx`. */
   format: string;
   sizeBytes: number;
   sentAt: string;
+};
+
+/** Item da lista fechada de documentos de contratação (`GET /documentos/tipos`). */
+export type DocumentType = {
+  code: string;
+  name: string;
+  required: boolean;
+  /** Quando o documento passa a ser exigido; nulo nos obrigatórios. */
+  condition: string | null;
+};
+
+/** Quadro de documentos de uma candidatura: o que foi enviado e o que falta. */
+export type DocumentBoard = {
+  applicationId: string;
+  candidateName: string;
+  jobTitle: string;
+  sentRequired: number;
+  totalRequired: number;
+  sent: CandidateDocument[];
+  pending: DocumentType[];
 };
 
 /** Usuário do RH, listado em Configurações. */
@@ -119,5 +144,8 @@ export type NotificationItem = {
   description: string;
   read: boolean;
 };
+
+/** O que chega pelo fluxo de notificações: a conexão abriu (recarregue a lista) ou há uma notificação nova. */
+export type NotificationEvent = { type: 'connected' } | { type: 'notification'; item: NotificationItem };
 
 export type NewJobInput = Omit<Job, 'id' | 'publishedAt' | 'status'>;

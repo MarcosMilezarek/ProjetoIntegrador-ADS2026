@@ -637,3 +637,8 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
   .tabbar { grid-auto-columns: minmax(0, 1fr); }
   .tabbar:has(> button:nth-child(4)) button { font-size: 0.6875rem; }
 }
+
+/* ---------- Quadro de documentos: enviados e pendentes ---------- */
+.doc-subhead { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px var(--pad-x); border-top: 1px solid var(--line); background: var(--brand-soft); color: var(--ink-2); font-family: var(--font-body, inherit); font-size: 0.8125rem; font-weight: 600; }
+.doc-subhead span { font-variant-numeric: tabular-nums; font-weight: 500; }
+.doc-none { margin: 0; padding: 14px var(--pad-x); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 0.9375rem; }

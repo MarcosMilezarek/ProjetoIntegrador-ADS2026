@@ -4,13 +4,17 @@ import type {
   Candidate,
   CandidateDocument,
   CandidateProfile,
+  DocumentBoard,
+  DocumentType,
   Job,
   JobStatus,
   NewJobInput,
+  NotificationEvent,
   NotificationItem,
   StaffUser,
   StaffUserInput,
 } from '@/types/domain';
+import { ApiError } from '@/lib/api-client';
 import { emptyProfile, restPortalService } from '@/services/rest-portal-service';
 
 const today = '21/08/2026';
@@ -49,9 +53,24 @@ const seedApplications: Application[] = [
   { id: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', jobStatus: 'aberta', candidateId: candidateIdentity.id, submittedAt: '28/07/2026', status: 'approved' },
 ];
 
+/** Mesma lista fechada que o backend entrega em GET /documentos/tipos. */
+const seedDocumentTypes: DocumentType[] = [
+  { code: 'rg', name: 'RG', required: true, condition: null },
+  { code: 'cpf', name: 'CPF', required: true, condition: null },
+  { code: 'ctps', name: 'Carteira de Trabalho (CTPS)', required: true, condition: null },
+  { code: 'titulo_eleitor', name: 'Título de eleitor', required: true, condition: null },
+  { code: 'comprovante_residencia', name: 'Comprovante de residência', required: true, condition: null },
+  { code: 'comprovante_escolaridade', name: 'Comprovante de escolaridade', required: true, condition: null },
+  { code: 'foto_3x4', name: 'Foto 3x4', required: true, condition: null },
+  { code: 'pis_pasep', name: 'PIS ou PASEP', required: true, condition: null },
+  { code: 'certidao_nascimento_casamento', name: 'Certidão de nascimento ou casamento', required: true, condition: null },
+  { code: 'dados_bancarios', name: 'Dados bancários', required: true, condition: null },
+  { code: 'certificado_reservista', name: 'Certificado de reservista', required: false, condition: 'Obrigatório para homens de 18 a 45 anos.' },
+];
+
 const seedDocuments: CandidateDocument[] = [
-  { id: 'doc-rg', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'RG', format: 'pdf', sizeBytes: 184320, sentAt: '06/08/2026' },
-  { id: 'doc-cpf', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'CPF', format: 'pdf', sizeBytes: 90112, sentAt: '06/08/2026' },
+  { id: 'doc-rg', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'RG', typeCode: 'rg', format: 'pdf', sizeBytes: 184320, sentAt: '06/08/2026' },
+  { id: 'doc-cpf', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'CPF', typeCode: 'cpf', format: 'pdf', sizeBytes: 90112, sentAt: '06/08/2026' },
 ];
 
 const seedUsers: StaffUser[] = [
@@ -66,7 +85,7 @@ const seedNotifications: NotificationItem[] = [
 ];
 
 type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[]; users: StaffUser[] };
-const storeKey = 'vagas-plus-mock-db-v2';
+const storeKey = 'vagas-plus-mock-db-v3';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function getStore(): Store {
@@ -92,14 +111,22 @@ export interface PortalService {
   getCandidates(jobId: string): Promise<Candidate[]>;
   updateApplicationStatus(id: string, status: ApplicationStatus): Promise<Application>;
   getDocuments(): Promise<CandidateDocument[]>;
-  uploadDocument(applicationId: string, type: string, file: File): Promise<CandidateDocument>;
+  /** `typeCode` é o código da lista de tipos; reenviar o mesmo tipo substitui o arquivo anterior. */
+  uploadDocument(applicationId: string, typeCode: string, file: File): Promise<CandidateDocument>;
   downloadDocument(id: string): Promise<Blob>;
+  getDocumentTypes(): Promise<DocumentType[]>;
+  getDocumentBoard(applicationId: string): Promise<DocumentBoard>;
+  /** `dateTime` é o valor de um input datetime-local, no horário de Brasília. */
+  scheduleInterview(applicationId: string, dateTime: string): Promise<Application>;
   getUsers(): Promise<StaffUser[]>;
   createUser(input: StaffUserInput): Promise<StaffUser>;
   updateUser(id: string, input: StaffUserInput): Promise<StaffUser>;
   deleteUser(id: string): Promise<void>;
   getNotifications(): Promise<NotificationItem[]>;
   markNotificationsRead(): Promise<void>;
+  markNotificationRead(id: string): Promise<void>;
+  /** Notificações em tempo real, até `signal` abortar. Só a API real tem fluxo; o mock não emite nada. */
+  subscribeNotifications(onEvent: (event: NotificationEvent) => void, signal: AbortSignal): Promise<void>;
 }
 
 export const mockPortalService: PortalService = {
@@ -151,21 +178,45 @@ export const mockPortalService: PortalService = {
   },
   async getCandidates(jobId) {
     const store = getStore();
-    return delay(store.applications.filter((app) => app.jobId === jobId).map((app): Candidate => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, status: app.status })));
+    return delay(store.applications.filter((app) => app.jobId === jobId).map((app): Candidate => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, status: app.status, interviewAt: app.interviewAt })));
   },
   async updateApplicationStatus(id, status) { const store = getStore(); const application = store.applications.find((item) => item.id === id); if (!application) throw new Error('Candidatura não encontrada'); application.status = status; saveStore(store); return delay(application); },
   async getDocuments() { return delay(getStore().documents); },
-  async uploadDocument(applicationId, type, file) {
+  async uploadDocument(applicationId, typeCode, file) {
     const store = getStore();
     const application = store.applications.find((item) => item.id === applicationId);
     if (!application) throw new Error('Candidatura não encontrada.');
     if (application.status !== 'approved' && application.status !== 'hired') throw new Error('Os documentos só podem ser enviados depois da aprovação na vaga.');
-    const document: CandidateDocument = { id: crypto.randomUUID(), applicationId, jobId: application.jobId, jobTitle: application.jobTitle, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type, format: file.name.split('.').pop()?.toLowerCase() ?? 'pdf', sizeBytes: file.size, sentAt: today };
-    store.documents = [document, ...store.documents];
+    const documentType = seedDocumentTypes.find((item) => item.code === typeCode);
+    if (!documentType) throw new Error('Tipo de documento inválido.');
+    const document: CandidateDocument = { id: crypto.randomUUID(), applicationId, jobId: application.jobId, jobTitle: application.jobTitle, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: documentType.name, typeCode, format: file.name.split('.').pop()?.toLowerCase() ?? 'pdf', sizeBytes: file.size, sentAt: today };
+    // Um documento por tipo em cada candidatura: reenviar substitui o anterior.
+    store.documents = [document, ...store.documents.filter((item) => !(item.applicationId === applicationId && item.typeCode === typeCode))];
     saveStore(store);
     return delay(document);
   },
   async downloadDocument() { return new Blob(['Arquivo de demonstração'], { type: 'application/pdf' }); },
+  async getDocumentTypes() { return delay(seedDocumentTypes); },
+  async getDocumentBoard(applicationId) {
+    const store = getStore();
+    const application = store.applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error('Candidatura não encontrada.');
+    const sent = store.documents.filter((item) => item.applicationId === applicationId);
+    const sentCodes = new Set(sent.map((item) => item.typeCode));
+    const required = seedDocumentTypes.filter((item) => item.required);
+    return delay({ applicationId, candidateName: candidateIdentity.name, jobTitle: application.jobTitle, sentRequired: required.filter((item) => sentCodes.has(item.code)).length, totalRequired: required.length, sent, pending: seedDocumentTypes.filter((item) => !sentCodes.has(item.code)) });
+  },
+  async scheduleInterview(applicationId, dateTime) {
+    const store = getStore();
+    const application = store.applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error('Candidatura não encontrada.');
+    const when = new Date(`${dateTime.slice(0, 16)}:00-03:00`);
+    if (when.getTime() <= Date.now()) { const message = 'A entrevista deve ser marcada para uma data e hora futuras.'; throw new ApiError(message, 400, { dataHora: message }); }
+    application.status = 'interview';
+    application.interviewAt = when.toISOString();
+    saveStore(store);
+    return delay(application);
+  },
   async getUsers() { return delay(getStore().users); },
   async createUser(input) {
     const store = getStore();
@@ -191,6 +242,8 @@ export const mockPortalService: PortalService = {
   },
   async getNotifications() { return delay(getStore().notifications); },
   async markNotificationsRead() { const store = getStore(); store.notifications = store.notifications.map((notification) => ({ ...notification, read: true })); saveStore(store); return delay(undefined); },
+  async markNotificationRead(id) { const store = getStore(); store.notifications = store.notifications.map((notification) => notification.id === id ? { ...notification, read: true } : notification); saveStore(store); return delay(undefined); },
+  async subscribeNotifications() { /* sem tempo real no mock */ },
 };
 
 export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API === 'false'
@@ -210,9 +263,16 @@ export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API ==
       getDocuments: restPortalService.getDocuments,
       uploadDocument: restPortalService.uploadDocument,
       downloadDocument: restPortalService.downloadDocument,
+      getDocumentTypes: restPortalService.getDocumentTypes,
+      getDocumentBoard: restPortalService.getDocumentBoard,
+      scheduleInterview: restPortalService.scheduleInterview,
       getUsers: restPortalService.getUsers,
       createUser: restPortalService.createUser,
       updateUser: restPortalService.updateUser,
       deleteUser: restPortalService.deleteUser,
+      getNotifications: restPortalService.getNotifications,
+      markNotificationsRead: restPortalService.markNotificationsRead,
+      markNotificationRead: restPortalService.markNotificationRead,
+      subscribeNotifications: restPortalService.subscribeNotifications,
     }
   : mockPortalService;

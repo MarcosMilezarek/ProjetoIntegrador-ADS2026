@@ -1,3 +1,4 @@
+import { apiClient } from '@/lib/api-client';
 import type { LoginRequest, LoginResponse, SignupRequest, UsuarioResponse } from '@/types/auth';
 
 const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api').replace(/\/$/, '');
@@ -5,6 +6,8 @@ const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api').re
 export interface AuthService {
   login(credentials: LoginRequest): Promise<LoginResponse>;
   cadastrar(dados: SignupRequest): Promise<UsuarioResponse>;
+  /** Confere o token já definido com `setAuthToken` e devolve quem está logado (GET /auth/me). */
+  usuarioAtual(): Promise<UsuarioResponse>;
 }
 
 async function postJson(caminho: string, corpo: unknown): Promise<Response> {
@@ -50,4 +53,6 @@ export const authService: AuthService = {
     if (!response.ok) throw new Error(await mensagemDeErro(response, 'Não foi possível concluir o cadastro. Tente novamente em instantes.'));
     return response.json() as Promise<UsuarioResponse>;
   },
+
+  usuarioAtual: () => apiClient<UsuarioResponse>('/auth/me'),
 };

@@ -41,7 +41,7 @@ async function erroDaResposta(response: Response): Promise<ApiError> {
 export async function apiClient<T>(
   path: string,
   init: RequestInit = {},
-  options?: { notFoundAsNull?: boolean; as?: 'json' | 'blob' },
+  options?: { notFoundAsNull?: boolean; as?: 'json' | 'blob' | 'stream' },
 ): Promise<T> {
   if (!baseUrl) throw new Error('VITE_API_URL não está configurada.');
 
@@ -52,7 +52,7 @@ export async function apiClient<T>(
     response = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
-        ...(isFormData || options?.as === 'blob' ? {} : { 'Content-Type': 'application/json' }),
+        ...(isFormData || options?.as === 'blob' || options?.as === 'stream' ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
@@ -67,6 +67,7 @@ export async function apiClient<T>(
   if (!response.ok) throw await erroDaResposta(response);
 
   if (options?.as === 'blob') return response.blob() as Promise<T>;
+  if (options?.as === 'stream') return response as T;
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
