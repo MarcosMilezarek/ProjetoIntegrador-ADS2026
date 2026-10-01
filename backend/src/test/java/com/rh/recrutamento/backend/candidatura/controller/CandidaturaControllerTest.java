@@ -3,6 +3,7 @@ package com.rh.recrutamento.backend.candidatura.controller;
 import com.rh.recrutamento.backend.auth.config.SegurancaConfig;
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
+import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
 import com.rh.recrutamento.backend.candidatura.exception.CandidaturaNaoPermitidaException;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,7 +46,7 @@ class CandidaturaControllerTest {
     private CandidaturaService candidaturaService;
 
     private final CandidaturaResponse inscricao = new CandidaturaResponse(
-        20L, 10L, "Backend Java", "aberta", 1L, "Ana", "ana@teste.com", "inscrito", LocalDateTime.now());
+        20L, 10L, "Backend Java", "aberta", 1L, "Ana", "ana@teste.com", "inscrito", null, LocalDateTime.now());
 
     @Test
     void candidatoSeInscreveEmVaga() throws Exception {
@@ -114,7 +116,7 @@ class CandidaturaControllerTest {
     @Test
     void rhMudaEtapaDoCandidato() throws Exception {
         CandidaturaResponse emEntrevista = new CandidaturaResponse(
-            20L, 10L, "Backend Java", "aberta", 1L, "Ana", "ana@teste.com", "entrevista", LocalDateTime.now());
+            20L, 10L, "Backend Java", "aberta", 1L, "Ana", "ana@teste.com", "entrevista", null, LocalDateTime.now());
         when(candidaturaService.alterarStatus(eq(20L), any(StatusCandidaturaRequest.class), eq(RITA))).thenReturn(emEntrevista);
 
         mockMvc.perform(put("/candidaturas/20/status").with(comoRh(7))
@@ -139,6 +141,40 @@ class CandidaturaControllerTest {
     void candidatoNaoMudaEtapa() throws Exception {
         mockMvc.perform(put("/candidaturas/20/status").with(comoCandidato(1))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"aprovado\"}"))
+            .andExpect(status().isForbidden());
+        verifyNoInteractions(candidaturaService);
+    }
+
+    @Test
+    void rhAgendaEntrevistaComDataEHoraComFuso() throws Exception {
+        Instant quando = Instant.parse("2030-10-15T17:30:00Z");
+        CandidaturaResponse agendada = new CandidaturaResponse(
+            20L, 10L, "Backend Java", "aberta", 1L, "Ana", "ana@teste.com", "entrevista", quando, LocalDateTime.now());
+        when(candidaturaService.agendarEntrevista(20L, new EntrevistaRequest(quando), RITA)).thenReturn(agendada);
+
+        mockMvc.perform(put("/candidaturas/20/entrevista").with(comoRh(7))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dataHora\":\"2030-10-15T14:30:00-03:00\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("entrevista"))
+            .andExpect(jsonPath("$.entrevistaEm").value("2030-10-15T17:30:00Z"));
+    }
+
+    @Test
+    void entrevistaNoPassadoOuSemDataRetorna400() throws Exception {
+        mockMvc.perform(put("/candidaturas/20/entrevista").with(comoRh(7))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dataHora\":\"2020-01-10T10:00:00-03:00\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos.dataHora").exists());
+        mockMvc.perform(put("/candidaturas/20/entrevista").with(comoRh(7))
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(candidaturaService);
+    }
+
+    @Test
+    void candidatoNaoAgendaEntrevista() throws Exception {
+        mockMvc.perform(put("/candidaturas/20/entrevista").with(comoCandidato(1))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dataHora\":\"2030-10-15T14:30:00-03:00\"}"))
             .andExpect(status().isForbidden());
         verifyNoInteractions(candidaturaService);
     }

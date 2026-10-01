@@ -10,6 +10,7 @@ import com.rh.recrutamento.backend.documento.dto.response.DocumentoResponse;
 import com.rh.recrutamento.backend.documento.entity.Documento;
 import com.rh.recrutamento.backend.documento.exception.DocumentoNaoPermitidoException;
 import com.rh.recrutamento.backend.documento.repository.DocumentoRepository;
+import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.vaga.entity.Vaga;
 import com.rh.recrutamento.backend.documento.mapper.DocumentoMapperImpl;
@@ -27,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -49,12 +51,15 @@ class DocumentoServiceTest {
     @Mock
     private ArquivoStorage arquivoStorage;
 
+    @Mock
+    private NotificacaoService notificacaoService;
+
     private DocumentoService documentoService;
 
     @BeforeEach
     void montarService() {
         documentoService = new DocumentoService(documentoRepository, candidaturaRepository,
-            new DocumentoMapperImpl(), arquivoStorage);
+            new DocumentoMapperImpl(), arquivoStorage, notificacaoService);
     }
 
     @Test
@@ -66,9 +71,53 @@ class DocumentoServiceTest {
         DocumentoResponse resposta = documentoService.enviar(20L, " RG ", pdf, ANA);
 
         assertThat(resposta.tipo()).isEqualTo("RG");
+        assertThat(resposta.tipoCodigo()).isEqualTo("rg");
         assertThat(resposta.formato()).isEqualTo("pdf");
         assertThat(resposta.candidatoId()).isEqualTo(1L);
         assertThat(resposta.vagaTitulo()).isEqualTo("Backend Java");
+        // o RH da vaga e avisado
+        verify(notificacaoService).notificar(any(Usuario.class), eq("Documento recebido"), contains("enviou RG"));
+    }
+
+    @Test
+    void reenviarOMesmoTipoSubstituiOArquivoAnterior() {
+        Documento anterior = documentoDaAna();
+        when(candidaturaRepository.findById(20L)).thenReturn(Optional.of(candidaturaDaAna(Candidatura.Status.aprovado)));
+        when(arquivoStorage.salvar(eq("documento"), any(), eq("pdf"))).thenReturn("novo.pdf");
+        when(documentoRepository.findByCandidatura_IdAndTipo(20L, Documento.Tipo.rg)).thenReturn(Optional.of(anterior));
+
+        DocumentoResponse resposta = documentoService.enviar(20L, "rg", pdf, ANA);
+
+        assertThat(resposta.id()).isEqualTo(30L);
+        assertThat(anterior.getArquivoUrl()).isEqualTo("novo.pdf");
+        verify(arquivoStorage).remover("documento", "gerado.pdf");
+        verify(documentoRepository, never()).save(any());
+    }
+
+    @Test
+    void tipoForaDaListaDeveSerRecusado() {
+        when(candidaturaRepository.findById(20L)).thenReturn(Optional.of(candidaturaDaAna(Candidatura.Status.aprovado)));
+
+        assertThatThrownBy(() -> documentoService.enviar(20L, "Comprovante qualquer", pdf, ANA))
+            .isInstanceOf(ArquivoInvalidoException.class)
+            .hasMessageContaining("Tipo de documento");
+        verifyNoInteractions(arquivoStorage, notificacaoService);
+    }
+
+    @Test
+    void situacaoSeparaEnviadosEPendentesEContaOsObrigatorios() {
+        when(candidaturaRepository.findById(20L)).thenReturn(Optional.of(candidaturaDaAna(Candidatura.Status.aprovado)));
+        when(documentoRepository.findByCandidatura_IdOrderByDataEnvioDesc(20L)).thenReturn(List.of(documentoDaAna()));
+
+        var quadro = documentoService.situacao(20L, RITA);
+
+        assertThat(quadro.enviados()).extracting(DocumentoResponse::tipoCodigo).containsExactly("rg");
+        assertThat(quadro.pendentes()).hasSize(Documento.Tipo.values().length - 1)
+            .noneMatch(t -> t.codigo().equals("rg"));
+        assertThat(quadro.enviadosExigidos()).isEqualTo(1);
+        assertThat(quadro.totalExigidos()).isEqualTo(10);
+        assertThatThrownBy(() -> documentoService.situacao(20L, BRUNO)).isInstanceOf(AcessoNegadoException.class);
+        assertThatThrownBy(() -> documentoService.situacao(20L, PAULO)).isInstanceOf(AcessoNegadoException.class);
     }
 
     @Test
@@ -151,7 +200,7 @@ class DocumentoServiceTest {
     }
 
     private Documento documentoDaAna() {
-        Documento documento = new Documento(candidaturaDaAna(Candidatura.Status.aprovado), "RG",
+        Documento documento = new Documento(candidaturaDaAna(Candidatura.Status.aprovado), Documento.Tipo.rg,
             Documento.Formato.pdf, "gerado.pdf", 4L);
         ReflectionTestUtils.setField(documento, "id", 30L);
         return documento;

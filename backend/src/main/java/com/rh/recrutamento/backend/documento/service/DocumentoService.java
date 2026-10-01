@@ -8,16 +8,23 @@ import com.rh.recrutamento.backend.comum.exception.ArquivoInvalidoException;
 import com.rh.recrutamento.backend.comum.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.comum.service.ArquivoStorage;
 import com.rh.recrutamento.backend.documento.dto.response.DocumentoResponse;
+import com.rh.recrutamento.backend.documento.dto.response.DocumentosDaCandidaturaResponse;
+import com.rh.recrutamento.backend.documento.dto.response.TipoDocumentoResponse;
 import com.rh.recrutamento.backend.documento.entity.Documento;
 import com.rh.recrutamento.backend.documento.exception.DocumentoNaoPermitidoException;
 import com.rh.recrutamento.backend.documento.mapper.DocumentoMapper;
 import com.rh.recrutamento.backend.documento.repository.DocumentoRepository;
+import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Documentos de contratacao (RF09), separados por candidato: o candidato ve so os seus (RN06);
@@ -33,19 +40,30 @@ public class DocumentoService {
     private final CandidaturaRepository candidaturaRepository;
     private final DocumentoMapper documentoMapper;
     private final ArquivoStorage arquivoStorage;
+    private final NotificacaoService notificacaoService;
 
     public DocumentoService(DocumentoRepository documentoRepository, CandidaturaRepository candidaturaRepository,
-                            DocumentoMapper documentoMapper, ArquivoStorage arquivoStorage) {
+                            DocumentoMapper documentoMapper, ArquivoStorage arquivoStorage,
+                            NotificacaoService notificacaoService) {
         this.documentoRepository = documentoRepository;
         this.candidaturaRepository = candidaturaRepository;
         this.documentoMapper = documentoMapper;
         this.arquivoStorage = arquivoStorage;
+        this.notificacaoService = notificacaoService;
     }
 
+    /** A lista fechada de tipos, na ordem de exibicao. */
+    public List<TipoDocumentoResponse> listarTipos() {
+        return Arrays.stream(Documento.Tipo.values()).map(TipoDocumentoResponse::de).toList();
+    }
+
+    /**
+     * Envia o documento de um tipo da lista. Se a candidatura ja tem um documento desse tipo,
+     * o arquivo novo substitui o anterior (um por tipo).
+     */
     @Transactional
     public DocumentoResponse enviar(Long candidaturaId, String tipo, MultipartFile arquivo, UsuarioLogado logado) {
-        Candidatura candidatura = candidaturaRepository.findById(candidaturaId)
-            .orElseThrow(() -> new RecursoNaoEncontradoException("Candidatura " + candidaturaId + " não encontrada."));
+        Candidatura candidatura = obterCandidatura(candidaturaId);
         if (!candidatura.getCandidato().getId().equals(logado.id())) {
             throw new AcessoNegadoException("Você só pode enviar documentos das suas próprias candidaturas.");
         }
@@ -53,18 +71,53 @@ public class DocumentoService {
                 && candidatura.getStatus() != Candidatura.Status.contratado) {
             throw new DocumentoNaoPermitidoException();
         }
-        if (tipo == null || tipo.isBlank() || tipo.trim().length() > 100) {
-            throw new ArquivoInvalidoException("Informe o tipo do documento (até 100 caracteres).");
-        }
+        Documento.Tipo tipoDocumento = Arrays.stream(Documento.Tipo.values())
+            .filter(t -> t.name().equalsIgnoreCase(tipo == null ? "" : tipo.trim()))
+            .findFirst()
+            .orElseThrow(() -> new ArquivoInvalidoException("Tipo de documento inválido. Escolha um tipo da lista."));
         Documento.Formato formato = Arrays.stream(Documento.Formato.values())
             .filter(f -> f.getContentType().equalsIgnoreCase(arquivo.getContentType()))
             .findFirst()
             .orElseThrow(() -> new ArquivoInvalidoException("Somente arquivos PDF ou DOCX são aceitos."));
 
         String nomeArmazenado = arquivoStorage.salvar(PASTA_ARQUIVOS, arquivo, formato.name());
-        Documento documento = documentoRepository.save(
-            new Documento(candidatura, tipo.trim(), formato, nomeArmazenado, arquivo.getSize()));
+        Optional<Documento> anterior = documentoRepository.findByCandidatura_IdAndTipo(candidaturaId, tipoDocumento);
+        Documento documento;
+        if (anterior.isPresent()) {
+            documento = anterior.get();
+            String arquivoAnterior = documento.getArquivoUrl();
+            documento.substituirArquivo(formato, nomeArmazenado, arquivo.getSize());
+            arquivoStorage.remover(PASTA_ARQUIVOS, arquivoAnterior);
+        } else {
+            documento = documentoRepository.save(
+                new Documento(candidatura, tipoDocumento, formato, nomeArmazenado, arquivo.getSize()));
+        }
+        notificacaoService.notificar(candidatura.getVaga().getRh(), "Documento recebido",
+            candidatura.getCandidato().getNome() + " enviou " + tipoDocumento.getNome()
+                + " para a vaga " + candidatura.getVaga().getTitulo() + ".");
         return documentoMapper.toResponse(documento);
+    }
+
+    /** Enviados e pendentes de uma candidatura. Ve o dono, o RH da vaga e o administrador. */
+    public DocumentosDaCandidaturaResponse situacao(Long candidaturaId, UsuarioLogado logado) {
+        Candidatura candidatura = obterCandidatura(candidaturaId);
+        verificarAcesso(candidatura, logado);
+
+        List<Documento> enviados = documentoRepository.findByCandidatura_IdOrderByDataEnvioDesc(candidaturaId);
+        Set<Documento.Tipo> tiposEnviados = enviados.stream()
+            .map(Documento::getTipo)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        List<TipoDocumentoResponse> pendentes = Arrays.stream(Documento.Tipo.values())
+            .filter(t -> !tiposEnviados.contains(t))
+            .map(TipoDocumentoResponse::de)
+            .toList();
+        long totalExigidos = Arrays.stream(Documento.Tipo.values()).filter(Documento.Tipo::isObrigatorio).count();
+        long enviadosExigidos = tiposEnviados.stream().filter(Documento.Tipo::isObrigatorio).count();
+
+        return new DocumentosDaCandidaturaResponse(candidatura.getId(), candidatura.getCandidato().getId(),
+            candidatura.getCandidato().getNome(), candidatura.getVaga().getId(), candidatura.getVaga().getTitulo(),
+            enviadosExigidos, totalExigidos, enviados.stream().map(documentoMapper::toResponse).toList(), pendentes);
     }
 
     /** Lista conforme o papel; candidatoId (opcional) filtra os documentos de um candidato. */
@@ -86,15 +139,23 @@ public class DocumentoService {
     public DocumentoBaixado baixar(Long id, UsuarioLogado logado) {
         Documento documento = documentoRepository.findById(id)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Documento " + id + " não encontrado."));
-        Candidatura candidatura = documento.getCandidatura();
-        boolean permitido = candidatura.getCandidato().getId().equals(logado.id()) || logado.gerencia(candidatura.getVaga());
-        if (!permitido) {
-            throw new AcessoNegadoException("Você não tem acesso a este documento.");
-        }
+        verificarAcesso(documento.getCandidatura(), logado);
         return new DocumentoBaixado(
-            documento.getTipo() + "." + documento.getFormato().name(),
+            documento.nomeDoTipo() + "." + documento.getFormato().name(),
             documento.getFormato().getContentType(),
             arquivoStorage.ler(PASTA_ARQUIVOS, documento.getArquivoUrl()));
+    }
+
+    /** O dono da candidatura, o RH responsavel pela vaga ou o administrador. */
+    private void verificarAcesso(Candidatura candidatura, UsuarioLogado logado) {
+        if (!candidatura.getCandidato().getId().equals(logado.id()) && !logado.gerencia(candidatura.getVaga())) {
+            throw new AcessoNegadoException("Você não tem acesso aos documentos desta candidatura.");
+        }
+    }
+
+    private Candidatura obterCandidatura(Long id) {
+        return candidaturaRepository.findById(id)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Candidatura " + id + " não encontrada."));
     }
 
     /** Arquivo pronto para resposta HTTP. */

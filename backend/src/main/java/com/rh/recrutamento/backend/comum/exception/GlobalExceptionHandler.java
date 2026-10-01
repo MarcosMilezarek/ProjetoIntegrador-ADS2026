@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -131,6 +132,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErroResponse> tratarRotaInexistente(NoResourceFoundException ex) {
         return construir(HttpStatus.NOT_FOUND, "Recurso nao encontrado.");
+    }
+
+    /** O cliente fechou a conexao (ex.: aba com o stream de notificacoes fechada): nao ha a quem responder. */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void tratarClienteDesconectado() {
+        // nada a fazer; a conexao ja foi removida pelo NotificacaoService
     }
 
     @ExceptionHandler(Exception.class)

@@ -2,6 +2,7 @@ package com.rh.recrutamento.backend.candidatura.controller;
 
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
+import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
 import com.rh.recrutamento.backend.candidatura.service.CandidaturaService;
@@ -47,5 +48,13 @@ public class CandidaturaController {
                                                              @Valid @RequestBody StatusCandidaturaRequest request,
                                                              @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(candidaturaService.alterarStatus(id, request, UsuarioLogado.de(jwt)));
+    }
+
+    /** Painel do RH: confirma a entrevista com data e hora; o candidato e avisado na hora. */
+    @PutMapping("/candidaturas/{id}/entrevista")
+    public ResponseEntity<CandidaturaResponse> agendarEntrevista(@PathVariable Long id,
+                                                                 @Valid @RequestBody EntrevistaRequest request,
+                                                                 @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(candidaturaService.agendarEntrevista(id, request, UsuarioLogado.de(jwt)));
     }
 }

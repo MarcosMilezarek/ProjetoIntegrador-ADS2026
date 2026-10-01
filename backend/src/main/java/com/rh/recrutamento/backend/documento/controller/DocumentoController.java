@@ -2,6 +2,8 @@ package com.rh.recrutamento.backend.documento.controller;
 
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.documento.dto.response.DocumentoResponse;
+import com.rh.recrutamento.backend.documento.dto.response.DocumentosDaCandidaturaResponse;
+import com.rh.recrutamento.backend.documento.dto.response.TipoDocumentoResponse;
 import com.rh.recrutamento.backend.documento.service.DocumentoService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
@@ -24,7 +26,23 @@ public class DocumentoController {
         this.documentoService = documentoService;
     }
 
-    /** O candidato envia um documento (PDF ou DOCX, ate 5MB) de uma candidatura aprovada. */
+    /** Lista fechada de tipos de documento (o upload recebe o codigo). */
+    @GetMapping("/documentos/tipos")
+    public ResponseEntity<List<TipoDocumentoResponse>> listarTipos() {
+        return ResponseEntity.ok(documentoService.listarTipos());
+    }
+
+    /** Quadro de enviados e pendentes da candidatura, igual para o candidato e para o RH. */
+    @GetMapping("/candidaturas/{candidaturaId}/documentos")
+    public ResponseEntity<DocumentosDaCandidaturaResponse> situacao(@PathVariable Long candidaturaId,
+                                                                    @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(documentoService.situacao(candidaturaId, UsuarioLogado.de(jwt)));
+    }
+
+    /**
+     * O candidato envia um documento (PDF ou DOCX, ate 5MB) de uma candidatura aprovada. "tipo" e o
+     * codigo da lista (GET /documentos/tipos); reenviar o mesmo tipo substitui o anterior.
+     */
     @PostMapping(path = "/candidaturas/{candidaturaId}/documentos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentoResponse> enviar(@PathVariable Long candidaturaId,
                                                     @RequestParam("tipo") String tipo,

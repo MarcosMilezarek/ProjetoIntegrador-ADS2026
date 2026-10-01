@@ -10,7 +10,10 @@ public record DocumentoResponse(
     String vagaTitulo,
     Long candidatoId,
     String candidatoNome,
+    /** Nome para exibir (ex.: "Comprovante de residência"). */
     String tipo,
+    /** Codigo da lista fechada (ex.: "comprovante_residencia"); nulo em envio antigo sem tipo correspondente. */
+    String tipoCodigo,
     String formato,
     Long tamanhoBytes,
     LocalDateTime dataEnvio

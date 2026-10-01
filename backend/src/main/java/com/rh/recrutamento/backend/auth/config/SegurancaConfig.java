@@ -99,7 +99,8 @@ public class SegurancaConfig {
                 .requestMatchers(HttpMethod.POST, "/candidaturas").hasRole(CANDIDATO)
                 .requestMatchers(HttpMethod.GET, "/candidaturas/minhas").hasRole(CANDIDATO)
                 .requestMatchers(HttpMethod.GET, "/vagas/*/candidaturas").hasAnyRole(RH, ADMINISTRADOR)
-                .requestMatchers(HttpMethod.PUT, "/candidaturas/*/status").hasAnyRole(RH, ADMINISTRADOR)
+                .requestMatchers(HttpMethod.PUT, "/candidaturas/*/status", "/candidaturas/*/entrevista")
+                    .hasAnyRole(RH, ADMINISTRADOR)
 
                 // documentos: so o candidato envia; a leitura (GET /documentos...) e filtrada por propriedade no service
                 .requestMatchers(HttpMethod.POST, "/candidaturas/*/documentos").hasRole(CANDIDATO)

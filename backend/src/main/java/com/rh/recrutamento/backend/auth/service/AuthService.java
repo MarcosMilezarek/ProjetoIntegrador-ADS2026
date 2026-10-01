@@ -1,9 +1,12 @@
 package com.rh.recrutamento.backend.auth.service;
 
+import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.auth.dto.request.LoginRequest;
 import com.rh.recrutamento.backend.auth.dto.response.LoginResponse;
 import com.rh.recrutamento.backend.auth.exception.CredenciaisInvalidasException;
 import com.rh.recrutamento.backend.auth.exception.UsuarioInativoException;
+import com.rh.recrutamento.backend.comum.exception.RecursoNaoEncontradoException;
+import com.rh.recrutamento.backend.usuario.dto.response.UsuarioResponse;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.mapper.UsuarioMapper;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
@@ -42,5 +45,15 @@ public class AuthService {
         }
 
         return usuarioMapper.toLoginResponse(usuario, tokenService.gerar(usuario));
+    }
+
+    /** Confere no banco quem o token diz ser: conta excluida responde 404; bloqueada ou inativa, 403. */
+    public UsuarioResponse usuarioAtual(UsuarioLogado logado) {
+        Usuario usuario = usuarioRepository.findById(logado.id())
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+        if (!usuario.estaAtivo()) {
+            throw new UsuarioInativoException();
+        }
+        return usuarioMapper.toResponse(usuario);
     }
 }
