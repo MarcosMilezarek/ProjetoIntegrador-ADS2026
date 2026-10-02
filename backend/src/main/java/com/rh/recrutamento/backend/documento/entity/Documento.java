@@ -36,6 +36,11 @@ public class Documento {
     @Column(nullable = false)
     private Formato formato;
 
+    /** Revisao do RH. Todo arquivo novo ou reenviado volta a ficar pendente. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Status status;
+
     /** Nome gerado do arquivo dentro de app.upload.dir/documento (nao e URL publica; o download passa pela API). */
     @Column(name = "arquivo_url", nullable = false, length = 500)
     private String arquivoUrl;
@@ -54,17 +59,23 @@ public class Documento {
         this.candidatura = candidatura;
         this.tipo = tipo;
         this.formato = formato;
+        this.status = Status.pendente;
         this.arquivoUrl = arquivoUrl;
         this.tamanhoBytes = tamanhoBytes;
         this.dataEnvio = LocalDateTime.now();
     }
 
-    /** Reenvio do mesmo tipo: o registro passa a apontar para o arquivo novo. */
+    /** Reenvio do mesmo tipo: o registro passa a apontar para o arquivo novo, que o RH ainda nao viu. */
     public void substituirArquivo(Formato formato, String arquivoUrl, Long tamanhoBytes) {
         this.formato = formato;
+        this.status = Status.pendente;
         this.arquivoUrl = arquivoUrl;
         this.tamanhoBytes = tamanhoBytes;
         this.dataEnvio = LocalDateTime.now();
+    }
+
+    public void alterarStatus(Status novo) {
+        this.status = novo;
     }
 
     /** Nome para exibir: o da lista ou, num envio antigo sem tipo, o texto que foi digitado. */
@@ -112,6 +123,9 @@ public class Documento {
             return condicao;
         }
     }
+
+    /** Situacao do documento na revisao do RH. */
+    public enum Status { pendente, aprovado, recusado }
 
     /** Formatos aceitos (RN08). */
     public enum Formato {

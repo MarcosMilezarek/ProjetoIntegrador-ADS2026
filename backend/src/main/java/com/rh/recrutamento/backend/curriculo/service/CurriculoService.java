@@ -122,7 +122,8 @@ public class CurriculoService {
         String nomeAnterior = anterior != null ? anterior.getNomeArmazenado() : null;
 
         if (!"application/pdf".equalsIgnoreCase(arquivo.getContentType())) {
-            throw new ArquivoInvalidoException("Somente arquivos PDF sao aceitos.");
+            throw new ArquivoInvalidoException(
+                "O currículo deve estar em PDF. Salve o seu arquivo nesse formato e envie novamente.");
         }
         String nomeArmazenado = arquivoStorage.salvar(PASTA_ARQUIVOS, arquivo, "pdf");
         curriculo.definirArquivo(new CurriculoArquivo(

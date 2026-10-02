@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 /** Inscricao de um candidato em uma vaga (RF07). RN01: uma por candidato e vaga. */
 @Entity
@@ -37,6 +38,14 @@ public class Candidatura {
     @Column(name = "entrevista_em")
     private LocalDateTime entrevistaEm;
 
+    /** Confirmacao do candidato para a entrevista marcada. Nula enquanto nao ha entrevista. */
+    @Enumerated(EnumType.STRING)
+    private Presenca presenca;
+
+    /** Quando o candidato confirmou, em UTC. */
+    @Column(name = "presenca_confirmada_em")
+    private LocalDateTime presencaConfirmadaEm;
+
     @CreationTimestamp
     @Column(name = "data_candidatura", nullable = false, updatable = false)
     private LocalDateTime dataCandidatura;
@@ -54,8 +63,17 @@ public class Candidatura {
         this.status = novo;
     }
 
+    /** Marcar ou remarcar: a data nova volta a aguardar a confirmacao do candidato. */
     public void agendarEntrevista(Instant quando) {
         this.entrevistaEm = LocalDateTime.ofInstant(quando, ZoneOffset.UTC);
+        this.presenca = Presenca.pendente;
+        this.presencaConfirmadaEm = null;
+    }
+
+    public void confirmarPresenca() {
+        this.presenca = Presenca.confirmado;
+        // em segundos, como o DATETIME do banco: a resposta da confirmacao e as leituras seguintes mostram o mesmo valor
+        this.presencaConfirmadaEm = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
     }
 
     /**
@@ -83,4 +101,7 @@ public class Candidatura {
             return rotulo;
         }
     }
+
+    /** Confirmacao de presenca do candidato na entrevista marcada. */
+    public enum Presenca { pendente, confirmado }
 }

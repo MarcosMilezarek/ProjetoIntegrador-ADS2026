@@ -114,7 +114,7 @@ class UsuarioControllerTest {
                 .content(objectMapper.writeValueAsString(new UsuarioRequest(
                     "Marina", "marina@email.com", "senha123", Usuario.Perfil.candidato, null))))
             .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.mensagem").value("Já existe um usuário cadastrado com o e-mail marina@email.com."));
+            .andExpect(jsonPath("$.mensagem").value("O e-mail marina@email.com já tem cadastro. Entre com ele ou use outro e-mail para criar a sua conta."));
     }
 
     @Test

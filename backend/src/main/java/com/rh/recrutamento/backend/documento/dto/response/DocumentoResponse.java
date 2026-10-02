@@ -15,6 +15,8 @@ public record DocumentoResponse(
     /** Codigo da lista fechada (ex.: "comprovante_residencia"); nulo em envio antigo sem tipo correspondente. */
     String tipoCodigo,
     String formato,
+    /** Revisao do RH: "pendente", "aprovado" ou "recusado". */
+    String status,
     Long tamanhoBytes,
     LocalDateTime dataEnvio
 ) {}

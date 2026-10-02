@@ -6,6 +6,6 @@ import com.rh.recrutamento.backend.comum.exception.NegocioException;
 public class UsuarioInativoException extends NegocioException {
 
     public UsuarioInativoException() {
-        super("Usuário bloqueado ou inativo.");
+        super("Seu acesso está temporariamente indisponível. Fale com a equipe de RH da empresa para saber como regularizar.");
     }
 }

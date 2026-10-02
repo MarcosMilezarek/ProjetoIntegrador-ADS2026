@@ -61,7 +61,7 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.autenticar(new LoginRequest("ninguem@email.com", "senha123")))
             .isInstanceOf(CredenciaisInvalidasException.class)
-            .hasMessage("E-mail ou senha inválidos.");
+            .hasMessage("Não foi possível entrar: o e-mail ou a senha não conferem. Confira os dados e tente novamente.");
     }
 
     @Test

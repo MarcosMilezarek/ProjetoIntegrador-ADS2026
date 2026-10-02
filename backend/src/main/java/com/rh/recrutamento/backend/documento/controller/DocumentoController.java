@@ -4,6 +4,7 @@ import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.documento.dto.response.DocumentoResponse;
 import com.rh.recrutamento.backend.documento.dto.response.DocumentosDaCandidaturaResponse;
 import com.rh.recrutamento.backend.documento.dto.response.TipoDocumentoResponse;
+import com.rh.recrutamento.backend.documento.entity.Documento;
 import com.rh.recrutamento.backend.documento.service.DocumentoService;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
@@ -50,6 +51,18 @@ public class DocumentoController {
                                                     @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(documentoService.enviar(candidaturaId, tipo, arquivo, UsuarioLogado.de(jwt)));
+    }
+
+    /** Painel do RH: aprova o documento; o candidato e avisado. */
+    @PutMapping("/documentos/{id}/aprovar")
+    public ResponseEntity<DocumentoResponse> aprovar(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(documentoService.avaliar(id, Documento.Status.aprovado, UsuarioLogado.de(jwt)));
+    }
+
+    /** Painel do RH: recusa o documento; o candidato e avisado e pode enviar uma nova versao. */
+    @PutMapping("/documentos/{id}/recusar")
+    public ResponseEntity<DocumentoResponse> recusar(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(documentoService.avaliar(id, Documento.Status.recusado, UsuarioLogado.de(jwt)));
     }
 
     @GetMapping("/documentos")

@@ -21,6 +21,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -94,7 +95,14 @@ public class GlobalExceptionHandler {
     /** Multipart sem o arquivo ou sem o campo tipo: 400, nao 500. */
     @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
     public ResponseEntity<ErroResponse> tratarParteAusente(Exception ex) {
-        return construir(HttpStatus.BAD_REQUEST, "Requisição incompleta: " + ex.getMessage());
+        return construir(HttpStatus.BAD_REQUEST,
+            "Faltou alguma informação no envio. Confira os dados e tente novamente.");
+    }
+
+    /** Valor de parametro fora do dominio (ex.: GET /agenda?status=talvez). Antes virava 500. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErroResponse> tratarParametroInvalido(MethodArgumentTypeMismatchException ex) {
+        return construir(HttpStatus.BAD_REQUEST, "O valor informado para \"" + ex.getName() + "\" não é válido. Confira e tente novamente.");
     }
 
     @ExceptionHandler(ArquivoInvalidoException.class)
@@ -105,7 +113,8 @@ public class GlobalExceptionHandler {
     /** Estouro do limite de multipart do servidor, antes de chegar na validacao de negocio. */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErroResponse> tratarArquivoGrande(MaxUploadSizeExceededException ex) {
-        return construir(HttpStatus.PAYLOAD_TOO_LARGE, "O arquivo deve ter no maximo 5MB.");
+        return construir(HttpStatus.PAYLOAD_TOO_LARGE,
+            "O arquivo ultrapassa o limite de 5MB. Reduza o tamanho (por exemplo, comprimindo o PDF) e envie novamente.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -117,7 +126,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ErroResponse.de(
             HttpStatus.BAD_REQUEST.value(),
             HttpStatus.BAD_REQUEST.getReasonPhrase(),
-            "Há campos inválidos na requisição.",
+            "Alguns campos precisam de ajuste. Confira os itens indicados e tente novamente.",
             campos
         ));
     }
@@ -125,7 +134,8 @@ public class GlobalExceptionHandler {
     /** JSON malformado ou valor fora do domínio de um enum (perfil/status). */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErroResponse> tratarCorpoIlegivel(HttpMessageNotReadableException ex) {
-        return construir(HttpStatus.BAD_REQUEST, "Requisição malformada ou com valores inválidos.");
+        return construir(HttpStatus.BAD_REQUEST,
+            "Não conseguimos entender os dados enviados. Revise as informações e tente novamente.");
     }
 
     /** Rota que nao existe (cai no handler de recursos estaticos): 404, nao 500. */
@@ -143,7 +153,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErroResponse> tratarErroInesperado(Exception ex) {
         log.error("Erro não tratado", ex);
-        return construir(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno no servidor.");
+        return construir(HttpStatus.INTERNAL_SERVER_ERROR,
+            "Algo não saiu como esperado do nosso lado. Tente novamente em alguns instantes.");
     }
 
     private ResponseEntity<ErroResponse> construir(HttpStatus status, String mensagem) {

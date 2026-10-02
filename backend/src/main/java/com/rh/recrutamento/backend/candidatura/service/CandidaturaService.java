@@ -14,6 +14,12 @@ import com.rh.recrutamento.backend.candidatura.repository.HistoricoStatusReposit
 import com.rh.recrutamento.backend.comum.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.comum.exception.RecursoNaoEncontradoException;
 import com.rh.recrutamento.backend.curriculo.repository.CurriculoRepository;
+import com.rh.recrutamento.backend.documento.service.DocumentoService;
+import com.rh.recrutamento.backend.funcionario.dto.response.FuncionarioResponse;
+import com.rh.recrutamento.backend.funcionario.entity.Funcionario;
+import com.rh.recrutamento.backend.funcionario.mapper.FuncionarioMapper;
+import com.rh.recrutamento.backend.funcionario.repository.FuncionarioRepository;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
 import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
@@ -42,11 +48,15 @@ public class CandidaturaService {
     private final CurriculoRepository curriculoRepository;
     private final CandidaturaMapper candidaturaMapper;
     private final NotificacaoService notificacaoService;
+    private final FuncionarioRepository funcionarioRepository;
+    private final FuncionarioMapper funcionarioMapper;
+    private final DocumentoService documentoService;
 
     public CandidaturaService(CandidaturaRepository candidaturaRepository, HistoricoStatusRepository historicoRepository,
                               VagaRepository vagaRepository, UsuarioRepository usuarioRepository,
                               CurriculoRepository curriculoRepository, CandidaturaMapper candidaturaMapper,
-                              NotificacaoService notificacaoService) {
+                              NotificacaoService notificacaoService, FuncionarioRepository funcionarioRepository,
+                              FuncionarioMapper funcionarioMapper, DocumentoService documentoService) {
         this.candidaturaRepository = candidaturaRepository;
         this.historicoRepository = historicoRepository;
         this.vagaRepository = vagaRepository;
@@ -54,26 +64,32 @@ public class CandidaturaService {
         this.curriculoRepository = curriculoRepository;
         this.candidaturaMapper = candidaturaMapper;
         this.notificacaoService = notificacaoService;
+        this.funcionarioRepository = funcionarioRepository;
+        this.funcionarioMapper = funcionarioMapper;
+        this.documentoService = documentoService;
     }
 
     @Transactional
     public CandidaturaResponse candidatar(CandidaturaRequest request, UsuarioLogado logado) {
         Vaga vaga = obterVaga(request.vagaId());
         if (vaga.getStatus() != Vaga.Status.aberta) {
-            throw new CandidaturaNaoPermitidaException("Esta vaga não está aberta para candidaturas.");
+            throw new CandidaturaNaoPermitidaException(
+                "Esta vaga não está aberta para candidaturas no momento. Veja as outras vagas disponíveis no portal.");
         }
         if (!curriculoRepository.existsByUsuario_Id(logado.id())) {
-            throw new CandidaturaNaoPermitidaException("Cadastre seu currículo antes de se candidatar.");
+            throw new CandidaturaNaoPermitidaException(
+                "Para se candidatar, cadastre primeiro o seu currículo. Ele fica salvo para as próximas vagas.");
         }
         if (candidaturaRepository.existsByCandidato_IdAndVaga_Id(logado.id(), vaga.getId())) {
-            throw new CandidaturaNaoPermitidaException("Você já se candidatou a esta vaga.");
+            throw new CandidaturaNaoPermitidaException(
+                "Você já se candidatou a esta vaga. Acompanhe o andamento em Minhas candidaturas.");
         }
 
         Usuario candidato = usuarioRepository.getReferenceById(logado.id());
         Candidatura candidatura = candidaturaRepository.save(new Candidatura(candidato, vaga));
         historicoRepository.save(new HistoricoStatus(
             candidatura, null, Candidatura.Status.inscrito, candidato, "Candidatura registrada pelo portal."));
-        notificacaoService.notificar(vaga.getRh(), "Nova candidatura",
+        notificacaoService.notificar(vaga.getRh(), Notificacao.Tipo.candidatura, candidatura.getId(), "Nova candidatura",
             candidato.getNome() + " se candidatou à vaga " + vaga.getTitulo() + ".");
         return candidaturaMapper.toResponse(candidatura);
     }
@@ -85,9 +101,11 @@ public class CandidaturaService {
             .toList();
     }
 
+    /** Quem ja foi contratado deixa a lista de candidatos e passa a aparecer em Funcionarios. */
     public List<CandidaturaResponse> listarPorVaga(Long vagaId, UsuarioLogado logado) {
         verificarResponsavel(obterVaga(vagaId), logado);
         return candidaturaRepository.findByVaga_IdOrderByDataCandidaturaAsc(vagaId).stream()
+            .filter(c -> c.getStatus() != Candidatura.Status.contratado)
             .map(candidaturaMapper::toResponse)
             .toList();
     }
@@ -96,11 +114,15 @@ public class CandidaturaService {
     public CandidaturaResponse alterarStatus(Long id, StatusCandidaturaRequest request, UsuarioLogado logado) {
         Candidatura candidatura = obterCandidatura(id);
         verificarResponsavel(candidatura.getVaga(), logado);
+        exigirNaoContratada(candidatura);
+        if (request.status() == Candidatura.Status.contratado) {
+            throw new CandidaturaNaoPermitidaException(
+                "Para contratar, use a ação Contratar: ela confere se o candidato está aprovado e com todos os documentos aprovados.");
+        }
 
         if (mudarEtapa(candidatura, request.status(), request.observacao(), logado)) {
-            notificacaoService.notificar(candidatura.getCandidato(), "Sua candidatura mudou de etapa",
-                "Vaga " + candidatura.getVaga().getTitulo() + ": sua candidatura agora está em \""
-                    + request.status().getRotulo() + "\".");
+            notificacaoService.notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, candidatura.getId(),
+                "Sua candidatura mudou de etapa", mensagemDaEtapa(candidatura, request.status()));
         }
         return candidaturaMapper.toResponse(candidatura);
     }
@@ -110,14 +132,74 @@ public class CandidaturaService {
     public CandidaturaResponse agendarEntrevista(Long id, EntrevistaRequest request, UsuarioLogado logado) {
         Candidatura candidatura = obterCandidatura(id);
         verificarResponsavel(candidatura.getVaga(), logado);
+        exigirNaoContratada(candidatura);
 
         String horario = HORARIO_ENTREVISTA.format(request.dataHora());
         candidatura.agendarEntrevista(request.dataHora());
         mudarEtapa(candidatura, Candidatura.Status.entrevista, "Entrevista agendada para " + horario + ".", logado);
-        notificacaoService.notificar(candidatura.getCandidato(), "Entrevista agendada",
+        notificacaoService.notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, candidatura.getId(),
+            "Entrevista agendada",
             "Vaga " + candidatura.getVaga().getTitulo() + ": sua entrevista foi marcada para " + horario
                 + " (horário de Brasília).");
         return candidaturaMapper.toResponse(candidatura);
+    }
+
+    /** O candidato confirma presenca na entrevista marcada: so o dono da candidatura, e so se ha entrevista marcada. */
+    @Transactional
+    public CandidaturaResponse confirmarPresenca(Long id, UsuarioLogado logado) {
+        Candidatura candidatura = obterCandidatura(id);
+        if (!candidatura.getCandidato().getId().equals(logado.id())) {
+            throw new AcessoNegadoException("Você só pode confirmar presença nas suas próprias entrevistas.");
+        }
+        if (candidatura.getStatus() != Candidatura.Status.entrevista || candidatura.getEntrevistaEm() == null) {
+            throw new CandidaturaNaoPermitidaException(
+                "Não há entrevista marcada para esta candidatura. Assim que o RH marcar, você será avisado.");
+        }
+        if (candidatura.getPresenca() != Candidatura.Presenca.confirmado) {
+            candidatura.confirmarPresenca();
+        }
+        return candidaturaMapper.toResponse(candidatura);
+    }
+
+    /**
+     * Agenda do RH: entrevistas marcadas (candidatura ainda na etapa entrevista) das suas vagas, ou de todas
+     * para o administrador, da mais proxima para a mais distante. "presenca" filtra confirmadas ou pendentes.
+     */
+    public List<CandidaturaResponse> agenda(Candidatura.Presenca presenca, UsuarioLogado logado) {
+        List<Candidatura> entrevistas = logado.ehAdministrador()
+            ? candidaturaRepository.findByStatusAndEntrevistaEmIsNotNullOrderByEntrevistaEmAsc(Candidatura.Status.entrevista)
+            : candidaturaRepository.findByStatusAndEntrevistaEmIsNotNullAndVaga_Rh_IdOrderByEntrevistaEmAsc(
+                Candidatura.Status.entrevista, logado.id());
+        return entrevistas.stream()
+            .filter(c -> presenca == null || c.getPresenca() == presenca)
+            .map(candidaturaMapper::toResponse)
+            .toList();
+    }
+
+    /**
+     * Contrata: so candidatura aprovada e com todos os documentos obrigatorios aprovados. Na mesma
+     * transacao a etapa vira contratado (com historico), nasce o funcionario ativo e o candidato e avisado;
+     * se qualquer passo falhar, nada fica gravado.
+     */
+    @Transactional
+    public FuncionarioResponse contratar(Long id, UsuarioLogado logado) {
+        Candidatura candidatura = obterCandidatura(id);
+        verificarResponsavel(candidatura.getVaga(), logado);
+        if (candidatura.getStatus() != Candidatura.Status.aprovado) {
+            throw new CandidaturaNaoPermitidaException("Só é possível contratar candidatos com a candidatura aprovada.");
+        }
+        List<String> faltando = documentoService.obrigatoriosNaoAprovados(id);
+        if (!faltando.isEmpty()) {
+            throw new CandidaturaNaoPermitidaException(
+                "Ainda faltam documentos aprovados para contratar: " + String.join(", ", faltando) + ".");
+        }
+
+        mudarEtapa(candidatura, Candidatura.Status.contratado, "Contratação registrada pelo RH.", logado);
+        Funcionario funcionario = funcionarioRepository.save(new Funcionario(candidatura));
+        notificacaoService.notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, candidatura.getId(),
+            "Contratação confirmada",
+            "Bem-vindo(a) à equipe! Você foi contratado(a) para a vaga " + candidatura.getVaga().getTitulo() + ".");
+        return funcionarioMapper.toResponse(funcionario);
     }
 
     /** Muda a etapa e registra no historico. Devolve false quando a etapa ja era a mesma (nada a registrar). */
@@ -130,6 +212,26 @@ public class CandidaturaService {
         historicoRepository.save(new HistoricoStatus(candidatura, anterior, novo,
             usuarioRepository.getReferenceById(logado.id()), observacao));
         return true;
+    }
+
+    /** Texto ao candidato para a nova etapa. Reprovacao e cancelamento levam uma mensagem acolhedora e o proximo passo. */
+    private String mensagemDaEtapa(Candidatura candidatura, Candidatura.Status novo) {
+        String vaga = candidatura.getVaga().getTitulo();
+        return switch (novo) {
+            case reprovado -> "Agradecemos o seu interesse e o tempo dedicado à vaga " + vaga
+                + ". Desta vez seguiremos com outro perfil, mas o seu currículo continua no portal "
+                + "e você pode se candidatar às outras vagas abertas.";
+            case cancelado -> "A sua candidatura à vaga " + vaga + " foi encerrada. "
+                + "Quando quiser, conheça as outras vagas abertas e candidate-se.";
+            default -> "Vaga " + vaga + ": sua candidatura agora está em \"" + novo.getRotulo() + "\".";
+        };
+    }
+
+    /** Depois de contratada, a candidatura so sai desse estado inativando o funcionario. */
+    private void exigirNaoContratada(Candidatura candidatura) {
+        if (candidatura.getStatus() == Candidatura.Status.contratado) {
+            throw new CandidaturaNaoPermitidaException("Este candidato já foi contratado e agora consta em Funcionários.");
+        }
     }
 
     private Candidatura obterCandidatura(Long id) {

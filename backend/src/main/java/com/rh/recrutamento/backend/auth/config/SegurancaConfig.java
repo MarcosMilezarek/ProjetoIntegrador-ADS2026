@@ -72,9 +72,9 @@ public class SegurancaConfig {
     @Bean
     public SecurityFilterChain filtroSeguranca(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
         AuthenticationEntryPoint naoAutenticado = (requisicao, resposta, erro) -> responderErro(
-            resposta, objectMapper, HttpStatus.UNAUTHORIZED, "Sessão inválida ou expirada. Faça login novamente.");
+            resposta, objectMapper, HttpStatus.UNAUTHORIZED, "Sua sessão terminou. Entre novamente para continuar de onde parou.");
         AccessDeniedHandler semPermissao = (requisicao, resposta, erro) -> responderErro(
-            resposta, objectMapper, HttpStatus.FORBIDDEN, "Seu perfil não tem permissão para esta ação.");
+            resposta, objectMapper, HttpStatus.FORBIDDEN, "Esta ação não está disponível para o seu perfil.");
 
         http
             // API sem cookie de sessao: o token vai no cabecalho Authorization, entao CSRF nao se aplica
@@ -101,9 +101,18 @@ public class SegurancaConfig {
                 .requestMatchers(HttpMethod.GET, "/vagas/*/candidaturas").hasAnyRole(RH, ADMINISTRADOR)
                 .requestMatchers(HttpMethod.PUT, "/candidaturas/*/status", "/candidaturas/*/entrevista")
                     .hasAnyRole(RH, ADMINISTRADOR)
+                // presenca na entrevista: so o candidato (e so a propria, conferida no service)
+                .requestMatchers(HttpMethod.PUT, "/candidaturas/*/entrevista/presenca").hasRole(CANDIDATO)
+                // agenda, contratacao e funcionarios: so o RH (ou o administrador)
+                .requestMatchers(HttpMethod.GET, "/agenda").hasAnyRole(RH, ADMINISTRADOR)
+                .requestMatchers(HttpMethod.POST, "/candidaturas/*/contratar").hasAnyRole(RH, ADMINISTRADOR)
+                .requestMatchers("/funcionarios", "/funcionarios/**").hasAnyRole(RH, ADMINISTRADOR)
 
-                // documentos: so o candidato envia; a leitura (GET /documentos...) e filtrada por propriedade no service
+                // documentos: so o candidato envia e so o RH aprova ou recusa; a leitura (GET /documentos...) e
+                // filtrada por propriedade no service
                 .requestMatchers(HttpMethod.POST, "/candidaturas/*/documentos").hasRole(CANDIDATO)
+                .requestMatchers(HttpMethod.PUT, "/documentos/*/aprovar", "/documentos/*/recusar")
+                    .hasAnyRole(RH, ADMINISTRADOR)
 
                 // curriculo: so o proprio candidato escreve
                 .requestMatchers(HttpMethod.POST, "/curriculos", "/curriculos/*/arquivo").hasRole(CANDIDATO)

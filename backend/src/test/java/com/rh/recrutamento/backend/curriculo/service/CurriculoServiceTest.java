@@ -273,7 +273,7 @@ class CurriculoServiceTest {
         assertThatThrownBy(() -> curriculoService.anexarArquivo(5L, new MockMultipartFile(
             "arquivo", "foto.png", "image/png", "png".getBytes()), candidatoLogado(1L)))
             .isInstanceOf(ArquivoInvalidoException.class)
-            .hasMessage("Somente arquivos PDF sao aceitos.");
+            .hasMessage("O currículo deve estar em PDF. Salve o seu arquivo nesse formato e envie novamente.");
         verify(arquivoStorage, never()).salvar(any(), any(), any());
     }
 
