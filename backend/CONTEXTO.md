@@ -193,6 +193,12 @@ Publicada na VPS em 2026-10-02 (commits `cf4ef57` do backend e `8df4498` do fron
 
 Teste funcional em produção depois do deploy (JWT, perfis, candidatura, entrevista, presença, agenda, revisão de documentos, contratação, funcionário e notificações em tempo real, inclusive o SSE atravessando o nginx): sem falhas. Ficaram no banco os registros de teste `e2e.*` (usuários, a vaga "Vaga E2E v6", a candidatura contratada e o funcionário dela, já inativado).
 
+## Publicação do sincronizador de notificações e do novo seed
+
+Publicada na VPS em 2026-10-02 (commits `51c2cc7` do backend, `bfe031c` do seed e `a8b8698` da documentação). Só o backend foi rebuildado; o frontend não mudou. Antes do deploy foram guardados em `/opt/backup`: `selecao_rh-antes-seed.sql` (dump com os dados de teste anteriores), `backend-antes-sync.jar`, `uploads-antes-seed.tgz` e `sha-antes-sync.txt` (commit anterior da VM). O banco de produção foi zerado (`TRUNCATE` de todas as tabelas, menos `flyway_schema_history`, com os ids reiniciados) e semeado com `database/seed.sql`, com o backend parado; os PDFs de exemplo foram criados por `database/seed-arquivos.sh`. Os arquivos de upload antigos continuam em `/opt/app/uploads` como órfãos (também estão no `tgz` de backup). Para voltar atrás: restaurar o dump (`sudo mysql selecao_rh < /opt/backup/selecao_rh-antes-seed.sql`) e, se preciso, o jar antigo, que roda com o mesmo schema V6.
+
+Validação antes de publicar, numa réplica descartável na própria VM (jar real, banco `selecao_rh_scratch` separado e nginx temporário com a mesma configuração e TLS): o evento chega em ~60 ms por Tomcat, nginx e nginx com TLS, e se mantém por 11 minutos com os pings; o nginx **não** era a causa. A causa foi reproduzida com duas instâncias do backend sobre o mesmo banco (a ação feita pela instância B não chegava ao candidato conectado na A em 6s) e, com o sincronizador, passou a chegar em ~0,7s, sem duplicar. Teste automatizado: `NotificacaoIntegracaoTest` (`notificacaoGravadaPorOutraInstanciaTambemChegaNaConexao` e `notificacaoCriadaAquiNaoChegaEmDobroDepoisDoSincronizador`).
+
 ## Como rodar
 
 ```bash
@@ -209,6 +215,8 @@ A senha do banco real (VPS) fica só em `application-local.properties` (gitignor
 ```bash
 gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9558c67f-ba71-45f5-82b" -- -L 3306:localhost:3306
 ```
+
+**Backend local e site compartilham o banco e, desde 2026-10-02, as notificações em tempo real** (sincronizador de 1s, ver "Notificações em tempo real"). Para o backend local receber também o que o site gravou, ele precisa estar numa versão com o sincronizador (commit `51c2cc7` ou posterior): reinicie-o depois de atualizar.
 
 **Atenção ao rodar uma migration nova pelo túnel**: o Flyway aplica no banco de produção assim que o backend local sobe. Se o código ainda não foi publicado na VM, o backend de produção passa a rodar com um schema que ele não conhece (foi o caso da V5, que renomeia `documento.tipo`). Teste migrations novas num MySQL descartável e só depois publique.
 
