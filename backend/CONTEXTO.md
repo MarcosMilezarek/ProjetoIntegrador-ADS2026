@@ -130,7 +130,8 @@ autenticar num `@WebMvcTest`, importe `SegurancaConfig` e `CorsConfig` e use os 
 - Tabela `notificacao` (destinatário, título, mensagem, lida, data). Geradas pelo backend: candidatura nova avisa o RH da vaga; documento enviado avisa o RH da vaga; mudança de etapa e entrevista agendada avisam o candidato.
 - Entrega por **SSE**: `GET /api/notificacoes/stream` (`text/event-stream`). Evento `conectado` ao abrir, evento `notificacao` (JSON igual ao da listagem) a cada aviso e um comentário `:ping` a cada 25s para o nginx não cortar a conexão. A notificação só é enviada depois do commit da ação.
 - **O token vai no cabeçalho `Authorization`, nunca na URL**: o frontend lê o stream com `fetch` (não com `EventSource`, que não manda cabeçalho). A conexão fecha quando o token expira; o cliente reconecta e, com token vencido, recebe 401.
-- As conexões ficam em memória (`NotificacaoService`), uma por aba. Serve para uma instância só do backend, que é o caso da VPS.
+- As conexões ficam em memória (`NotificacaoService`), uma por aba, **separadas em cada processo**. O backend local e o da VPS usam o mesmo MySQL (o local liga pelo túnel), então uma notificação criada por um deles não passava pela memória do outro e o site não recebia em tempo real o que o backend local gravou (e vice-versa). Descoberto em 2026-10-02: 25 das 51 ações que geraram notificações na VPS não tinham requisição no log do nginx, ou seja, vieram de um backend local pelo túnel.
+- **Sincronizador** (`NotificacaoService.sincronizar()`, a cada 1s): cada instância consulta `notificacao` por ids novos (`id > ultimoIdVisto`, cursor iniciado no maior id existente ao subir) e envia aos conectados dela as que **outra** instância gravou. As que a própria instância criou já saem pelo envio direto depois do commit e são puladas (mapa `criadasAqui`, preenchido antes do commit e limpo após 5 min), então nada chega em dobro. Latência: ~60 ms para o que nasce na instância e até ~1s para o que vem de outra. Limitação conhecida: uma linha com id menor que confirma depois de outra com id maior que o sincronizador já viu não é empurrada por ele (só ocorre entre instâncias, com transações concorrentes); ela continua na listagem e entra na ressincronização que o cliente faz ao reconectar.
 - `GET /api/notificacoes` lista as próprias (mais novas primeiro); `PUT /api/notificacoes/{id}/lida` marca uma; `PUT /api/notificacoes/lidas` marca todas. O contador de não lidas é calculado no cliente.
 
 ### Configurações (administrador)
@@ -220,20 +221,27 @@ Também é preciso o segredo do JWT: `JWT_SECRET` no ambiente ou `app.jwt.secret
 
 ## Dados de teste (seed)
 
-`database/seed.sql` popula todas as tabelas com dados de teste (5 vagas, 8 usuários, currículos
-completos, candidaturas em vários status, documentos, análises de IA e histórico). Senha de todos os
-usuários de teste: `senha123`; todos os e-mails terminam em `@exemplo.test`.
+`database/seed.sql` (schema V6) popula todas as tabelas com um **ambiente de escritório**: 1 administrador, 3 RH, 30 candidatos (um sem currículo, um inativo e um bloqueado) e 18 vagas (14 abertas, 2 rascunhos, 2 encerradas) de áreas administrativas: assistente administrativo, analista financeiro, departamento pessoal, recepção, contabilidade, contas a pagar e receber, recrutamento e seleção, estágio, secretária bilíngue, compras, coordenação, comercial, arquivo, fiscal, facilities e gerência. São 52 candidaturas em todas as etapas (16 inscrito, 10 em análise, 8 entrevista, 5 aprovado, 7 reprovado, 4 contratado, 2 cancelado), com histórico de etapas, agenda (entrevistas futuras com presença pendente ou confirmada e uma de ontem), documentos em todas as situações (pendente, aprovado, recusado; um aprovado já com os 10 exigidos aprovados, pronto para "Contratar"), 4 funcionários (3 ativos e 1 inativo), análises de IA e 347 notificações coerentes com cada passo (as dos últimos 4 dias ficam não lidas). Senha de todos os usuários de teste: `senha123`; todos os e-mails terminam em `@exemplo.test` (RH: `rita.rh`, `paulo.rh`, `marina.rh`; administrador: `admin`).
 
 Não roda automaticamente — o Flyway não lê esse arquivo, para não injetar dados de teste em produção
-sem intenção. Para aplicar:
+sem intenção. Para aplicar (a conexão precisa ser `utf8mb4`, por causa dos acentos):
 
 ```bash
-mysql -u <usuario> -p selecao_rh < database/seed.sql
+mysql --default-character-set=utf8mb4 -u <usuario> -p selecao_rh < database/seed.sql
+APP_UPLOAD_DIR=/opt/app/uploads bash database/seed-arquivos.sh   # PDFs de exemplo (opcional)
 ```
 
 Pode ser reexecutado: o script começa removendo o seed anterior, com escopo restrito ao domínio
-`@exemplo.test` (contas reais não são afetadas). O único ponto de atenção é `curriculo_arquivo`: a
-linha aponta para `seed-ana.pdf` em `$APP_UPLOAD_DIR/curriculo/`, que precisa existir em disco para
-o download funcionar (o próprio arquivo tem a instrução do `printf`). Os três `documento` do seed
-também só referenciam nomes em `$APP_UPLOAD_DIR/documento/`, sem arquivo real: o download deles
-responde 404.
+`@exemplo.test` (contas reais não são afetadas). Todas as datas são relativas ao momento da execução
+(`@agora`), então a agenda e os prazos fazem sentido no dia em que o seed é aplicado. **Convenção de
+horário**: o driver JDBC (`serverTimezone=America/Sao_Paulo`) grava todas as colunas de data e hora em
+horário de Brasília, inclusive as que o código trata como UTC (`entrevista_em`, `presenca_confirmada_em`); o
+seed segue a mesma convenção (`UTC_TIMESTAMP() - INTERVAL 3 HOUR`) e a API converte na leitura.
+
+`database/seed-arquivos.sh` cria os PDFs de exemplo (15 currículos e 70 documentos) com os nomes que o seed
+referencia em `$APP_UPLOAD_DIR/curriculo` e `$APP_UPLOAD_DIR/documento`; sem eles o seed funciona, mas o
+download desses arquivos responde 404.
+
+Para **zerar o banco antes de semear** (por exemplo, trocar os dados de teste antigos por estes) não há
+script no repositório, de propósito: é uma operação destrutiva e pontual. Faça o dump antes e use
+`SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE ...;` em todas as tabelas menos `flyway_schema_history`.
