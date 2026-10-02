@@ -18,4 +18,12 @@ public interface CandidaturaRepository extends JpaRepository<Candidatura, Long> 
 
     @EntityGraph(attributePaths = {"candidato", "vaga"})
     List<Candidatura> findByVaga_IdOrderByDataCandidaturaAsc(Long vagaId);
+
+    /** Agenda do administrador: entrevistas marcadas de todas as vagas, as mais proximas primeiro. */
+    @EntityGraph(attributePaths = {"candidato", "vaga"})
+    List<Candidatura> findByStatusAndEntrevistaEmIsNotNullOrderByEntrevistaEmAsc(Candidatura.Status status);
+
+    /** Agenda do RH: entrevistas marcadas das vagas sob a sua responsabilidade (RN07). */
+    @EntityGraph(attributePaths = {"candidato", "vaga"})
+    List<Candidatura> findByStatusAndEntrevistaEmIsNotNullAndVaga_Rh_IdOrderByEntrevistaEmAsc(Candidatura.Status status, Long rhId);
 }

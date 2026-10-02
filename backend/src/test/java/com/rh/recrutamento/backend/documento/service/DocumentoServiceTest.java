@@ -10,6 +10,7 @@ import com.rh.recrutamento.backend.documento.dto.response.DocumentoResponse;
 import com.rh.recrutamento.backend.documento.entity.Documento;
 import com.rh.recrutamento.backend.documento.exception.DocumentoNaoPermitidoException;
 import com.rh.recrutamento.backend.documento.repository.DocumentoRepository;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
 import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.vaga.entity.Vaga;
@@ -76,7 +77,8 @@ class DocumentoServiceTest {
         assertThat(resposta.candidatoId()).isEqualTo(1L);
         assertThat(resposta.vagaTitulo()).isEqualTo("Backend Java");
         // o RH da vaga e avisado
-        verify(notificacaoService).notificar(any(Usuario.class), eq("Documento recebido"), contains("enviou RG"));
+        verify(notificacaoService).notificar(any(Usuario.class), eq(Notificacao.Tipo.candidatura), any(),
+            eq("Documento recebido"), contains("enviou RG"));
     }
 
     @Test

@@ -5,7 +5,9 @@ import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
+import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import com.rh.recrutamento.backend.candidatura.service.CandidaturaService;
+import com.rh.recrutamento.backend.funcionario.dto.response.FuncionarioResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,5 +58,25 @@ public class CandidaturaController {
                                                                  @Valid @RequestBody EntrevistaRequest request,
                                                                  @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(candidaturaService.agendarEntrevista(id, request, UsuarioLogado.de(jwt)));
+    }
+
+    /** Portal do candidato: confirma presenca na entrevista marcada (so a propria). */
+    @PutMapping("/candidaturas/{id}/entrevista/presenca")
+    public ResponseEntity<CandidaturaResponse> confirmarPresenca(@PathVariable Long id,
+                                                                 @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(candidaturaService.confirmarPresenca(id, UsuarioLogado.de(jwt)));
+    }
+
+    /** Painel do RH: agenda de entrevistas. "status" (pendente ou confirmado) filtra pela presenca. */
+    @GetMapping("/agenda")
+    public ResponseEntity<List<CandidaturaResponse>> agenda(@RequestParam(required = false) Candidatura.Presenca status,
+                                                            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(candidaturaService.agenda(status, UsuarioLogado.de(jwt)));
+    }
+
+    /** Painel do RH: contrata o candidato aprovado com todos os documentos aprovados e o torna funcionario. */
+    @PostMapping("/candidaturas/{id}/contratar")
+    public ResponseEntity<FuncionarioResponse> contratar(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(candidaturaService.contratar(id, UsuarioLogado.de(jwt)));
     }
 }

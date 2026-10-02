@@ -12,6 +12,10 @@ import com.rh.recrutamento.backend.candidatura.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.candidatura.repository.HistoricoStatusRepository;
 import com.rh.recrutamento.backend.comum.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.curriculo.repository.CurriculoRepository;
+import com.rh.recrutamento.backend.documento.service.DocumentoService;
+import com.rh.recrutamento.backend.funcionario.mapper.FuncionarioMapperImpl;
+import com.rh.recrutamento.backend.funcionario.repository.FuncionarioRepository;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
 import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
@@ -64,12 +68,19 @@ class CandidaturaServiceTest {
     @Mock
     private NotificacaoService notificacaoService;
 
+    @Mock
+    private FuncionarioRepository funcionarioRepository;
+
+    @Mock
+    private DocumentoService documentoService;
+
     private CandidaturaService candidaturaService;
 
     @BeforeEach
     void montarService() {
         candidaturaService = new CandidaturaService(candidaturaRepository, historicoRepository, vagaRepository,
-            usuarioRepository, curriculoRepository, new CandidaturaMapperImpl(), notificacaoService);
+            usuarioRepository, curriculoRepository, new CandidaturaMapperImpl(), notificacaoService,
+            funcionarioRepository, new FuncionarioMapperImpl(), documentoService);
     }
 
     @Test
@@ -91,7 +102,8 @@ class CandidaturaServiceTest {
         assertThat(historico.getValue().getStatusAnterior()).isNull();
         assertThat(historico.getValue().getStatusNovo()).isEqualTo(Candidatura.Status.inscrito);
         // o RH responsavel pela vaga e avisado
-        verify(notificacaoService).notificar(eq(vaga.getRh()), eq("Nova candidatura"), eq("Ana se candidatou à vaga Backend Java."));
+        verify(notificacaoService).notificar(eq(vaga.getRh()), eq(Notificacao.Tipo.candidatura), any(),
+            eq("Nova candidatura"), eq("Ana se candidatou à vaga Backend Java."));
     }
 
     @Test
@@ -164,7 +176,8 @@ class CandidaturaServiceTest {
         assertThat(historico.getValue().getStatusNovo()).isEqualTo(Candidatura.Status.entrevista);
         assertThat(historico.getValue().getUsuario().getId()).isEqualTo(7L);
         assertThat(historico.getValue().getObservacao()).isEqualTo("Entrevista marcada");
-        verify(notificacaoService).notificar(eq(candidatura.getCandidato()), anyString(), contains("\"Entrevista\""));
+        verify(notificacaoService).notificar(eq(candidatura.getCandidato()), eq(Notificacao.Tipo.candidatura), eq(20L),
+            anyString(), contains("\"Entrevista\""));
     }
 
     @Test
@@ -182,7 +195,8 @@ class CandidaturaServiceTest {
         verify(historicoRepository).save(historico.capture());
         assertThat(historico.getValue().getStatusNovo()).isEqualTo(Candidatura.Status.entrevista);
         // 17:30 UTC = 14:30 em Brasilia
-        verify(notificacaoService).notificar(candidatura.getCandidato(), "Entrevista agendada",
+        verify(notificacaoService).notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, 20L,
+            "Entrevista agendada",
             "Vaga Backend Java: sua entrevista foi marcada para 15/10/2030 às 14:30 (horário de Brasília).");
     }
 

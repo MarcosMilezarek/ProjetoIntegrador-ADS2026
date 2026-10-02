@@ -7,6 +7,6 @@ public class CredenciaisInvalidasException extends NegocioException {
 
     public CredenciaisInvalidasException() {
         // Mensagem genérica de propósito: não revela se o erro foi no e-mail ou na senha (RNF02/segurança)
-        super("E-mail ou senha inválidos.");
+        super("Não foi possível entrar: o e-mail ou a senha não conferem. Confira os dados e tente novamente.");
     }
 }

@@ -1,8 +1,12 @@
 package com.rh.recrutamento.backend.vaga.service;
 
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
+import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
+import com.rh.recrutamento.backend.candidatura.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.comum.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.comum.exception.RecursoNaoEncontradoException;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
+import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
 import com.rh.recrutamento.backend.vaga.dto.request.VagaRequest;
@@ -25,11 +29,16 @@ public class VagaService {
     private final VagaRepository vagaRepository;
     private final UsuarioRepository usuarioRepository;
     private final VagaMapper vagaMapper;
+    private final CandidaturaRepository candidaturaRepository;
+    private final NotificacaoService notificacaoService;
 
-    public VagaService(VagaRepository vagaRepository, UsuarioRepository usuarioRepository, VagaMapper vagaMapper) {
+    public VagaService(VagaRepository vagaRepository, UsuarioRepository usuarioRepository, VagaMapper vagaMapper,
+                       CandidaturaRepository candidaturaRepository, NotificacaoService notificacaoService) {
         this.vagaRepository = vagaRepository;
         this.usuarioRepository = usuarioRepository;
         this.vagaMapper = vagaMapper;
+        this.candidaturaRepository = candidaturaRepository;
+        this.notificacaoService = notificacaoService;
     }
 
     @Transactional
@@ -48,7 +57,11 @@ public class VagaService {
             request.prazo()
         );
 
-        return vagaMapper.toResponse(vagaRepository.save(vaga));
+        Vaga salva = vagaRepository.save(vaga);
+        if (salva.getStatus() == Vaga.Status.aberta) {
+            notificarNovaVaga(salva);
+        }
+        return vagaMapper.toResponse(salva);
     }
 
     /** Candidato ve tudo menos rascunho; RH ve as proprias vagas (RN07); administrador ve todas. */
@@ -81,6 +94,7 @@ public class VagaService {
         Vaga vaga = obterVaga(id);
         verificarResponsavel(vaga, logado);
 
+        Vaga.Status anterior = vaga.getStatus();
         vaga.atualizarDados(
             request.titulo().trim(),
             request.descricao().trim(),
@@ -92,7 +106,33 @@ public class VagaService {
             request.prazo()
         );
 
-        return vagaMapper.toResponse(vagaRepository.save(vaga));
+        Vaga salva = vagaRepository.save(vaga);
+        // unico caminho de encerramento (nao ha encerramento automatico por prazo) e de publicacao de rascunho
+        if (anterior == Vaga.Status.rascunho && salva.getStatus() == Vaga.Status.aberta) {
+            notificarNovaVaga(salva);
+        } else if (anterior != Vaga.Status.encerrada && salva.getStatus() == Vaga.Status.encerrada) {
+            notificarEncerramento(salva);
+        }
+        return vagaMapper.toResponse(salva);
+    }
+
+    /** Vaga publicada: todos os candidatos ativos sao avisados. A referencia e o id da vaga. */
+    private void notificarNovaVaga(Vaga vaga) {
+        usuarioRepository.findByPerfilAndStatus(Usuario.Perfil.candidato, Usuario.Status.ativo)
+            .forEach(candidato -> notificacaoService.notificar(candidato, Notificacao.Tipo.nova_vaga, vaga.getId(),
+                "Nova vaga publicada", "A vaga " + vaga.getTitulo() + " está aberta. Veja os detalhes e candidate-se."));
+    }
+
+    /**
+     * Vaga encerrada: cada candidato dela, exceto quem foi contratado, e avisado com uma mensagem
+     * acolhedora. A referencia e o id da candidatura de cada um.
+     */
+    private void notificarEncerramento(Vaga vaga) {
+        candidaturaRepository.findByVaga_IdOrderByDataCandidaturaAsc(vaga.getId()).stream()
+            .filter(c -> c.getStatus() != Candidatura.Status.contratado)
+            .forEach(c -> notificacaoService.notificar(c.getCandidato(), Notificacao.Tipo.candidatura, c.getId(),
+                "Vaga encerrada", "A vaga " + vaga.getTitulo() + " foi encerrada. Agradecemos a sua participação "
+                    + "no processo. O seu currículo continua no portal: fique de olho nas novas vagas e candidate-se quando quiser."));
     }
 
     private Vaga obterVaga(Long id) {

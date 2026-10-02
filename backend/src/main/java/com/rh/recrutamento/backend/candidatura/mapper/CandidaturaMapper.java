@@ -20,6 +20,7 @@ public interface CandidaturaMapper {
     @Mapping(target = "candidatoNome", source = "candidato.nome")
     @Mapping(target = "candidatoEmail", source = "candidato.email")
     @Mapping(target = "entrevistaEm", expression = "java(emUtc(candidatura.getEntrevistaEm()))")
+    @Mapping(target = "presencaConfirmadaEm", expression = "java(emUtc(candidatura.getPresencaConfirmadaEm()))")
     CandidaturaResponse toResponse(Candidatura candidatura);
 
     /** A coluna guarda a hora em UTC sem fuso; aqui ela volta a ser um instante. */

@@ -42,12 +42,14 @@ public class NotificacaoService {
     }
 
     /**
-     * Grava a notificacao na transacao de quem chamou e so envia depois do commit,
-     * para ninguem ser avisado de uma acao que acabou desfeita.
+     * Unico ponto de criacao de notificacoes. Grava na transacao de quem chamou e so envia depois
+     * do commit, para ninguem ser avisado de uma acao que acabou desfeita. "referenciaId" e o id da
+     * candidatura (tipo candidatura) ou da vaga (tipo nova_vaga).
      */
     @Transactional
-    public void notificar(Usuario destinatario, String titulo, String mensagem) {
-        Notificacao notificacao = notificacaoRepository.save(new Notificacao(destinatario, titulo, mensagem));
+    public void notificar(Usuario destinatario, Notificacao.Tipo tipo, Long referenciaId, String titulo, String mensagem) {
+        Notificacao notificacao = notificacaoRepository.save(
+            new Notificacao(destinatario, tipo, referenciaId, titulo, mensagem));
         NotificacaoResponse resposta = notificacaoMapper.toResponse(notificacao);
         Long destinatarioId = destinatario.getId();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

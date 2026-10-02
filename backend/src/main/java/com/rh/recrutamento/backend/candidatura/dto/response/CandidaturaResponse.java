@@ -15,5 +15,9 @@ public record CandidaturaResponse(
     String status,
     /** Entrevista marcada, em UTC (ex.: 2026-10-15T17:30:00Z). Nula enquanto nao houver. */
     Instant entrevistaEm,
+    /** "pendente" ou "confirmado". Nula enquanto nao houver entrevista. */
+    String presenca,
+    /** Quando o candidato confirmou a presenca, em UTC. Nula enquanto pendente. */
+    Instant presencaConfirmadaEm,
     LocalDateTime dataCandidatura
 ) {}

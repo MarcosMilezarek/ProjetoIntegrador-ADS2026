@@ -86,7 +86,8 @@ public class ArquivoStorage {
             throw new ArquivoInvalidoException("Envie um arquivo.");
         }
         if (arquivo.getSize() > TAMANHO_MAXIMO_BYTES) {
-            throw new ArquivoInvalidoException("O arquivo deve ter no maximo 5MB.");
+            throw new ArquivoInvalidoException(
+                "O arquivo ultrapassa o limite de 5MB. Reduza o tamanho (por exemplo, comprimindo o PDF) e envie novamente.");
         }
     }
 }

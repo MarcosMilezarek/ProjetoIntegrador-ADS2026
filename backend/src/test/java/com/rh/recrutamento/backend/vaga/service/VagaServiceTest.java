@@ -1,8 +1,10 @@
 package com.rh.recrutamento.backend.vaga.service;
 
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
+import com.rh.recrutamento.backend.candidatura.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.comum.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.comum.exception.RecursoNaoEncontradoException;
+import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
 import com.rh.recrutamento.backend.vaga.dto.request.VagaRequest;
@@ -42,11 +44,18 @@ class VagaServiceTest {
     @Mock
     private UsuarioRepository usuarioRepository;
 
+    @Mock
+    private CandidaturaRepository candidaturaRepository;
+
+    @Mock
+    private NotificacaoService notificacaoService;
+
     private VagaService vagaService;
 
     @BeforeEach
     void montarService() {
-        vagaService = new VagaService(vagaRepository, usuarioRepository, new VagaMapperImpl());
+        vagaService = new VagaService(vagaRepository, usuarioRepository, new VagaMapperImpl(),
+            candidaturaRepository, notificacaoService);
     }
 
     @Test

@@ -6,6 +6,6 @@ import com.rh.recrutamento.backend.comum.exception.NegocioException;
 public class EmailJaCadastradoException extends NegocioException {
 
     public EmailJaCadastradoException(String email) {
-        super("Já existe um usuário cadastrado com o e-mail " + email + ".");
+        super("O e-mail " + email + " já tem cadastro. Entre com ele ou use outro e-mail para criar a sua conta.");
     }
 }

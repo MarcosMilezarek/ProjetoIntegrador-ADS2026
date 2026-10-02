@@ -14,6 +14,7 @@ import com.rh.recrutamento.backend.documento.entity.Documento;
 import com.rh.recrutamento.backend.documento.exception.DocumentoNaoPermitidoException;
 import com.rh.recrutamento.backend.documento.mapper.DocumentoMapper;
 import com.rh.recrutamento.backend.documento.repository.DocumentoRepository;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
 import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,11 +75,13 @@ public class DocumentoService {
         Documento.Tipo tipoDocumento = Arrays.stream(Documento.Tipo.values())
             .filter(t -> t.name().equalsIgnoreCase(tipo == null ? "" : tipo.trim()))
             .findFirst()
-            .orElseThrow(() -> new ArquivoInvalidoException("Tipo de documento inválido. Escolha um tipo da lista."));
+            .orElseThrow(() -> new ArquivoInvalidoException(
+                "Tipo de documento não reconhecido. Escolha um dos tipos da lista para continuar."));
         Documento.Formato formato = Arrays.stream(Documento.Formato.values())
             .filter(f -> f.getContentType().equalsIgnoreCase(arquivo.getContentType()))
             .findFirst()
-            .orElseThrow(() -> new ArquivoInvalidoException("Somente arquivos PDF ou DOCX são aceitos."));
+            .orElseThrow(() -> new ArquivoInvalidoException(
+                "Aceitamos arquivos em PDF ou DOCX. Salve o seu documento em um desses formatos e envie novamente."));
 
         String nomeArmazenado = arquivoStorage.salvar(PASTA_ARQUIVOS, arquivo, formato.name());
         Optional<Documento> anterior = documentoRepository.findByCandidatura_IdAndTipo(candidaturaId, tipoDocumento);
@@ -92,10 +95,52 @@ public class DocumentoService {
             documento = documentoRepository.save(
                 new Documento(candidatura, tipoDocumento, formato, nomeArmazenado, arquivo.getSize()));
         }
-        notificacaoService.notificar(candidatura.getVaga().getRh(), "Documento recebido",
+        notificacaoService.notificar(candidatura.getVaga().getRh(), Notificacao.Tipo.candidatura, candidatura.getId(),
+            "Documento recebido",
             candidatura.getCandidato().getNome() + " enviou " + tipoDocumento.getNome()
                 + " para a vaga " + candidatura.getVaga().getTitulo() + ".");
         return documentoMapper.toResponse(documento);
+    }
+
+    /**
+     * O RH aprova ou recusa um documento enviado (so o responsavel pela vaga, ou o administrador).
+     * O candidato e avisado uma unica vez, quando a situacao realmente muda.
+     */
+    @Transactional
+    public DocumentoResponse avaliar(Long id, Documento.Status resultado, UsuarioLogado logado) {
+        Documento documento = documentoRepository.findById(id)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Documento " + id + " não encontrado."));
+        Candidatura candidatura = documento.getCandidatura();
+        if (!logado.gerencia(candidatura.getVaga())) {
+            throw new AcessoNegadoException("Esta vaga está sob responsabilidade de outro RH.");
+        }
+        if (documento.getStatus() != resultado) {
+            documento.alterarStatus(resultado);
+            String descricao = documento.nomeDoTipo() + " da vaga " + candidatura.getVaga().getTitulo();
+            if (resultado == Documento.Status.aprovado) {
+                notificacaoService.notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, candidatura.getId(),
+                    "Documento aprovado", "Seu documento " + descricao + " foi aprovado. Obrigado pelo envio!");
+            } else {
+                notificacaoService.notificar(candidatura.getCandidato(), Notificacao.Tipo.candidatura, candidatura.getId(),
+                    "Precisamos de um novo envio", "Não conseguimos aprovar o documento " + descricao
+                        + " desta vez. Sem problema: envie uma nova versão na tela de Documentos e o RH analisa novamente.");
+            }
+        }
+        return documentoMapper.toResponse(documento);
+    }
+
+    /** Nomes dos documentos obrigatorios que ainda nao foram aprovados pelo RH (vazio = pode contratar). */
+    public List<String> obrigatoriosNaoAprovados(Long candidaturaId) {
+        Set<Documento.Tipo> aprovados = documentoRepository.findByCandidatura_IdOrderByDataEnvioDesc(candidaturaId).stream()
+            .filter(d -> d.getStatus() == Documento.Status.aprovado)
+            .map(Documento::getTipo)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        return Arrays.stream(Documento.Tipo.values())
+            .filter(Documento.Tipo::isObrigatorio)
+            .filter(t -> !aprovados.contains(t))
+            .map(Documento.Tipo::getNome)
+            .toList();
     }
 
     /** Enviados e pendentes de uma candidatura. Ve o dono, o RH da vaga e o administrador. */

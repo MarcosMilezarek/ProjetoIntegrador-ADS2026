@@ -22,6 +22,15 @@ public class Notificacao {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    /** Assunto do aviso: o frontend destaca os de candidatura. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Tipo tipo;
+
+    /** Id do registro relacionado: a candidatura (tipo candidatura) ou a vaga (tipo nova_vaga). Nulo nas anteriores a V6. */
+    @Column(name = "referencia_id")
+    private Long referenciaId;
+
     @Column(nullable = false, length = 150)
     private String titulo;
 
@@ -38,8 +47,10 @@ public class Notificacao {
     protected Notificacao() {
     }
 
-    public Notificacao(Usuario usuario, String titulo, String mensagem) {
+    public Notificacao(Usuario usuario, Tipo tipo, Long referenciaId, String titulo, String mensagem) {
         this.usuario = usuario;
+        this.tipo = tipo;
+        this.referenciaId = referenciaId;
         this.titulo = titulo;
         this.mensagem = mensagem;
     }
@@ -47,4 +58,6 @@ public class Notificacao {
     public void marcarComoLida() {
         this.lida = true;
     }
+
+    public enum Tipo { candidatura, nova_vaga }
 }

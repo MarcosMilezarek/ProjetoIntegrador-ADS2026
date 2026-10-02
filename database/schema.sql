@@ -142,6 +142,8 @@ CREATE TABLE candidatura (
     status           ENUM('inscrito', 'em_triagem', 'entrevista', 'aprovado', 'reprovado',
                           'contratado', 'cancelado')                                              NOT NULL DEFAULT 'inscrito',
     entrevista_em    DATETIME                                                                    NULL,  -- em UTC
+    presenca         ENUM('pendente', 'confirmado')                                              NULL,  -- nula sem entrevista
+    presenca_confirmada_em DATETIME                                                              NULL,  -- em UTC
     data_candidatura DATETIME                                                                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_candidatura_usuario_vaga (usuario_id, vaga_id),
     CONSTRAINT fk_candidatura_usuario
@@ -168,6 +170,7 @@ CREATE TABLE documento (
                         'certificado_reservista')               NULL,
     tipo_informado VARCHAR(100)                            NULL,  -- texto livre de antes da V5
     formato        ENUM('pdf', 'docx')                     NOT NULL,
+    status         ENUM('pendente', 'aprovado', 'recusado') NOT NULL DEFAULT 'pendente',  -- revisao do RH
     arquivo_url    VARCHAR(500)                             NOT NULL,
     tamanho_bytes  INT UNSIGNED                             NOT NULL,
     data_envio     DATETIME                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -228,6 +231,8 @@ CREATE INDEX idx_historico_candidatura ON historico_status (candidatura_id);
 CREATE TABLE notificacao (
     id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     usuario_id BIGINT UNSIGNED  NOT NULL,
+    tipo       ENUM('candidatura', 'nova_vaga') NOT NULL DEFAULT 'candidatura',
+    referencia_id BIGINT UNSIGNED NULL,  -- id da candidatura ou da vaga, conforme o tipo
     titulo     VARCHAR(150)     NOT NULL,
     mensagem   VARCHAR(500)     NOT NULL,
     lida       BOOLEAN          NOT NULL DEFAULT FALSE,
@@ -238,3 +243,17 @@ CREATE TABLE notificacao (
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_notificacao_usuario ON notificacao (usuario_id, lida);
+
+-- ---------------------------------------------------------------
+-- funcionario (candidatura contratada)
+-- ---------------------------------------------------------------
+CREATE TABLE funcionario (
+    id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    candidatura_id   BIGINT UNSIGNED                 NOT NULL,
+    status           ENUM('ativo', 'inativo')        NOT NULL DEFAULT 'ativo',
+    data_contratacao DATETIME                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_funcionario_candidatura (candidatura_id),
+    CONSTRAINT fk_funcionario_candidatura
+        FOREIGN KEY (candidatura_id) REFERENCES candidatura (id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB;

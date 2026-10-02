@@ -6,6 +6,7 @@ import com.rh.recrutamento.backend.comum.exception.NegocioException;
 public class DocumentoNaoPermitidoException extends NegocioException {
 
     public DocumentoNaoPermitidoException() {
-        super("Os documentos de contratação só podem ser enviados depois da aprovação na vaga.");
+        super("Os documentos de contratação ficam disponíveis assim que você for aprovado na vaga. "
+            + "Enquanto isso, acompanhe o andamento em Minhas candidaturas.");
     }
 }
