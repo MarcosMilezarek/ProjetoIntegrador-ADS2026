@@ -6,6 +6,9 @@ import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import com.rh.recrutamento.backend.candidatura.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.curriculo.entity.Curriculo;
 import com.rh.recrutamento.backend.curriculo.repository.CurriculoRepository;
+import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
+import com.rh.recrutamento.backend.notificacao.repository.NotificacaoRepository;
+import com.rh.recrutamento.backend.notificacao.service.NotificacaoService;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
 import com.rh.recrutamento.backend.usuario.repository.UsuarioRepository;
 import com.rh.recrutamento.backend.vaga.entity.Vaga;
@@ -53,6 +56,12 @@ class NotificacaoIntegracaoTest {
 
     @Autowired
     private CurriculoRepository curriculoRepository;
+
+    @Autowired
+    private NotificacaoRepository notificacaoRepository;
+
+    @Autowired
+    private NotificacaoService notificacaoService;
 
     @Autowired
     private TokenService tokenService;
@@ -126,6 +135,45 @@ class NotificacaoIntegracaoTest {
         mockMvc.perform(get("/notificacoes")).andExpect(status().isUnauthorized());
     }
 
+    /**
+     * O backend local e o do site usam o mesmo MySQL, mas cada um guarda as conexoes SSE na propria memoria.
+     * Uma notificacao gravada por outra instancia precisa chegar tambem a quem esta conectado aqui.
+     */
+    @Test
+    void notificacaoGravadaPorOutraInstanciaTambemChegaNaConexao() throws Exception {
+        Usuario ana = usuario("ana@outra-instancia.test", Usuario.Perfil.candidato);
+        Usuario bruno = usuario("bruno@outra-instancia.test", Usuario.Perfil.candidato);
+        MvcResult streamAna = conectar(ana);
+        MvcResult streamBruno = conectar(bruno);
+
+        // outra instancia grava direto no banco: nada passa pelo NotificacaoService desta
+        notificacaoRepository.save(new Notificacao(ana, Notificacao.Tipo.candidatura, 77L,
+            "Sua candidatura mudou de etapa", "Gravada por outra instancia."));
+
+        aguardar(() -> conteudo(streamAna).contains("Gravada por outra instancia."));
+        assertThat(conteudo(streamAna)).contains("event:notificacao");
+        assertThat(conteudo(streamBruno)).doesNotContain("Gravada por outra instancia.");
+    }
+
+    /** O envio direto e o sincronizador convivem: o que esta instancia criou nao pode chegar duas vezes. */
+    @Test
+    void notificacaoCriadaAquiNaoChegaEmDobroDepoisDoSincronizador() throws Exception {
+        Usuario rita = usuario("rita@dobro.test", Usuario.Perfil.rh);
+        Usuario ana = usuario("ana@dobro.test", Usuario.Perfil.candidato);
+        curriculoRepository.save(new Curriculo(ana));
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Financeiro", "Descricao", null, null,
+            Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
+        MvcResult streamRita = conectar(rita);
+
+        mockMvc.perform(post("/candidaturas").header("Authorization", token(ana))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"vagaId\":" + vaga.getId() + "}"))
+            .andExpect(status().isCreated());
+        notificacaoService.sincronizar();
+        notificacaoService.sincronizar();
+
+        assertThat(conteudo(streamRita).split("event:notificacao", -1)).hasSize(2);
+    }
+
     @Test
     void entrevistaSoPeloRhDaVagaENoFuturo() throws Exception {
         Usuario rita = usuario("rita@entrevista.test", Usuario.Perfil.rh);
@@ -186,6 +234,19 @@ class NotificacaoIntegracaoTest {
 
     private static String conteudo(MvcResult stream) throws Exception {
         return stream.getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    /** Espera (ate 10s) a condicao ficar verdadeira; a entrega entre instancias e assincrona. */
+    private static void aguardar(Condicao condicao) throws Exception {
+        long limite = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+        while (!condicao.verdadeira() && System.nanoTime() < limite) {
+            Thread.sleep(100);
+        }
+    }
+
+    @FunctionalInterface
+    private interface Condicao {
+        boolean verdadeira() throws Exception;
     }
 
     private Usuario usuario(String email, Usuario.Perfil perfil) {
