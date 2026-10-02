@@ -176,6 +176,8 @@ gcloud compute ssh --zone "southamerica-east1-c" cloudvmads --project "project-9
 
 Se o histórico do GitHub for reescrito (force push), o `git pull` da VM falha. Nesse caso use `git fetch origin && git reset --hard origin/main` e depois `chmod +x backend/mvnw`, porque o reset devolve o `mvnw` sem permissão de execução (a VM mantém essa permissão só localmente).
 
+Se o `git pull` da VM reclamar de `frontend/package-lock.json` (o `npm install` de lá reescreve esse arquivo), rode `git checkout -- frontend/package-lock.json` antes do pull; é só um arquivo gerado, sem alteração que valha manter.
+
 ## Publicação do JWT
 
 A autenticação JWT foi publicada na VPS em 2026-10-01, junto com o frontend que envia o token. `JWT_SECRET` está no `backend.service`. Antes dessa publicação, o jar e o `dist` anteriores foram guardados em `/opt/backup` (`backend-antes-jwt.jar`, `dist-antes-jwt` e `sha-antes-jwt.txt`), caso seja preciso voltar atrás.
@@ -183,6 +185,12 @@ A autenticação JWT foi publicada na VPS em 2026-10-01, junto com o frontend qu
 ## Publicação das notificações, entrevista e tipos de documento
 
 Publicada na VPS em 2026-10-01 (backend e frontend juntos), com as migrations V3 a V5 aplicadas no banco de produção. Antes, foram guardados em `/opt/backup`: `selecao_rh-antes-v5.sql` (dump do banco), `backend-antes-v5.jar`, `dist-antes-v5`, `uploads-antes-v5.tgz` e `sha-antes-v5.txt`. Para voltar atrás é preciso restaurar o dump junto com o jar, porque o jar antigo não funciona com o schema V5.
+
+## Publicação da presença, agenda, revisão de documentos e funcionários
+
+Publicada na VPS em 2026-10-02 (commits `cf4ef57` do backend e `8df4498` do frontend, migration V6). A V6 já estava aplicada no banco de produção desde a manhã do mesmo dia (13:45 no relógio do servidor), porque o backend local subiu pelo túnel antes da publicação, o caso que o aviso em "Como rodar" descreve. Como ela só adiciona colunas com valor padrão e uma tabela, o backend antigo continuou funcionando nesse intervalo. Antes do deploy foram guardados em `/opt/backup`: `selecao_rh-antes-v6.sql`, `backend-antes-v6.jar`, `dist-antes-v6`, `uploads-antes-v6.tgz` e `sha-antes-v6.txt`. Como o schema já era o V6 quando o backup foi feito, o jar `antes-v6` também roda com ele.
+
+Teste funcional em produção depois do deploy (JWT, perfis, candidatura, entrevista, presença, agenda, revisão de documentos, contratação, funcionário e notificações em tempo real, inclusive o SSE atravessando o nginx): sem falhas. Ficaram no banco os registros de teste `e2e.*` (usuários, a vaga "Vaga E2E v6", a candidatura contratada e o funcionário dela, já inativado).
 
 ## Como rodar
 
