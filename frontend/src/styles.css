@@ -642,3 +642,81 @@ a { color: var(--brand-text); text-underline-offset: 3px; }
 .doc-subhead { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px var(--pad-x); border-top: 1px solid var(--line); background: var(--brand-soft); color: var(--ink-2); font-family: var(--font-body, inherit); font-size: 0.8125rem; font-weight: 600; }
 .doc-subhead span { font-variant-numeric: tabular-nums; font-weight: 500; }
 .doc-none { margin: 0; padding: 14px var(--pad-x); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 0.9375rem; }
+
+/* ---------- Agenda, funcionários, revisão de documentos e notificações de candidatura ---------- */
+/* Notificação de candidatura em tom verde; a de nova vaga segue o estilo padrão. */
+.notification-item[data-type="candidatura"] { background: color-mix(in srgb, var(--tone-green) 14%, var(--glass-solid)); }
+.notification-item[data-type="candidatura"][data-highlighted] { background: color-mix(in srgb, var(--tone-green) 24%, var(--glass-solid)); }
+/* Item de menu desabilitado com o motivo logo abaixo: só o título esmaece, o motivo continua legível. */
+.has-hint { align-items: flex-start !important; }
+.has-hint > svg { margin-top: 3px; }
+.has-hint[data-disabled] { opacity: 1; }
+.has-hint[data-disabled] > svg, .has-hint[data-disabled] .hint-title { opacity: 0.5; }
+.has-hint small { display: block; max-width: 15rem; margin-top: 2px; color: var(--ink-2); font-size: 0.75rem; line-height: 1.35; white-space: normal; }
+/* Linha com Aprovar, Recusar e Baixar não cabe ao lado do texto num diálogo: os botões descem para baixo dele */
+.job-dialog .doc-row:has(.doc-side > button:nth-of-type(3)) { grid-template-columns: 42px minmax(0, 1fr); }
+.job-dialog .doc-row:has(.doc-side > button:nth-of-type(3)) .doc-side { grid-column: 2; justify-content: flex-start; }
+@media (max-width: 767px) {
+  /* RH com 5 ou 6 abas: cada aba tem ao menos a largura do rótulo e a barra rola se faltar espaço */
+  .tabbar:has(> button:nth-child(5)) { grid-auto-columns: minmax(max-content, 1fr); overflow-x: auto; scrollbar-width: none; }
+  .tabbar:has(> button:nth-child(5)) button { padding-inline: 4px; }
+}
+
+/* ---------- Documentos em acordeão: o candidato é o cabeçalho, os documentos ficam recuados dentro dele ---------- */
+.doc-candidate-head { align-items: center; gap: 12px 16px; padding: 18px var(--pad-x); border-radius: 0; font-size: 1rem; text-decoration: none; cursor: pointer; transition: background-color 0.2s; }
+.doc-candidate-head:hover { background: var(--brand-soft); text-decoration: none; }
+.doc-candidate-head .person { flex: 1 1 14rem; min-width: 0; }
+.doc-candidate-head .person strong { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.01em; }
+.doc-candidate-head .person small { color: var(--ink-2); font-size: 0.8125rem; font-weight: 400; overflow-wrap: anywhere; }
+.doc-candidate-head .initials { width: 44px; height: 44px; font-size: 1rem; }
+.doc-candidate-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.doc-candidate-head [data-slot="accordion-trigger-icon"] { margin-left: 0; }
+.doc-candidate[data-state="open"] > h3 .doc-candidate-head { background: var(--brand-soft); border-bottom: 1px solid var(--line); }
+.doc-items { padding: 6px var(--pad-x) 14px calc(var(--pad-x) + 22px); }
+.doc-items .doc-row { grid-template-columns: 36px minmax(0, 1fr) auto; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--glass-field); }
+.doc-items .doc-row + .doc-row { margin-top: 8px; }
+.doc-items .doc-row:first-child { border-top: 1px solid var(--line); }
+.doc-items .doc-row .doc-icon { width: 36px; height: 36px; }
+/* Recuados dentro do candidato, os documentos ficam sem largura para texto e botões lado a lado: os botões descem para baixo do texto */
+@media (max-width: 1099px) {
+  .doc-items .doc-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .doc-items .doc-row .doc-side { grid-column: 2; justify-content: flex-start; }
+}
+@media (max-width: 767px) {
+  .doc-candidate-head { flex-wrap: wrap; }
+  .doc-candidate-head .person { flex: 1 1 0; }
+  .doc-candidate-meta { order: 3; flex: 1 0 100%; justify-content: flex-start; margin-left: 0; }
+  .doc-items { padding: 6px 12px 12px 20px; }
+  .doc-items .doc-side > [data-slot="button"] { flex: 1 1 auto; }
+}
+
+/* ---------- Agenda em calendário ---------- */
+.agenda { display: grid; grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); gap: 20px; align-items: start; }
+.agenda-cal { --cell-size: 2.75rem; width: 100%; padding: 16px; background: transparent; }
+.agenda-cal [data-slot="button"][data-variant="ghost"] { font-size: 0.9375rem; }
+/* Ponto no dia com entrevista: amarelo se há presença pendente, verde se todas confirmaram */
+.agenda-cal td.event-pending::after, .agenda-cal td.event-confirmed::after { content: ""; position: absolute; z-index: 20; bottom: 5px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; pointer-events: none; }
+.agenda-cal td.event-pending::after { background: var(--tone-yellow); }
+.agenda-cal td.event-confirmed::after { background: var(--tone-green); }
+.agenda-cal td:has(> button[data-selected-single="true"])::after { background: #fff; }
+.agenda-day .doc-subhead { border-top: 0; font-size: 0.9375rem; }
+.agenda-event { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 16px var(--pad-x); border-top: 1px solid var(--line); }
+.agenda-event time { font-family: var(--font-display); font-size: 1.0625rem; font-weight: 700; }
+/* Em colunas estreitas a presença desce para baixo do nome */
+@media (max-width: 1099px) {
+  .agenda-event { grid-template-columns: 3.25rem minmax(0, 1fr); }
+  .agenda-event .chip { grid-column: 2; justify-self: start; }
+}
+@media (max-width: 767px) {
+  .agenda { grid-template-columns: minmax(0, 1fr); }
+  .agenda-cal { padding: 12px; }
+}
+
+/* Menu do topo do RH com 5 ou 6 abas não cabe entre 768px e 1239px: sem ícones, com menos folga, sem o nome ao lado do avatar e, se ainda faltar espaço, com rolagem */
+@media (min-width: 768px) and (max-width: 1239px) {
+  .app-nav:has(.topnav > button:nth-child(5)) { gap: 12px; }
+  .app-nav:has(.topnav > button:nth-child(5)) .topnav button { padding: 0 10px; }
+  .app-nav:has(.topnav > button:nth-child(5)) .topnav button svg { display: none; }
+  .app-nav:has(.topnav > button:nth-child(5)) .profile-trigger > span:first-child { display: none; }
+  .app-nav:has(.topnav > button:nth-child(5)) .topnav { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+}

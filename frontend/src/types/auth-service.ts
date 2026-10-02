@@ -18,7 +18,7 @@ async function postJson(caminho: string, corpo: unknown): Promise<Response> {
       body: JSON.stringify(corpo),
     });
   } catch {
-    throw new Error(`Não foi possível conectar ao servidor (${baseUrl}). Verifique se o backend está no ar.`);
+    throw new Error('Não conseguimos conectar ao servidor. Verifique sua conexão com a internet e tente novamente em instantes.');
   }
 }
 
@@ -41,15 +41,15 @@ async function mensagemDeErro(response: Response, padrao: string): Promise<strin
 export const authService: AuthService = {
   async login(credentials) {
     const response = await postJson('/auth/login', credentials);
-    if (response.status === 401) throw new Error('E-mail ou senha inválidos.');
-    if (response.status === 403) throw new Error('Usuário bloqueado ou inativo. Entre em contato com o suporte.');
+    if (response.status === 401) throw new Error('E-mail ou senha incorretos. Confira os dados e tente novamente.');
+    if (response.status === 403) throw new Error('Seu acesso está bloqueado ou inativo no momento. Entre em contato com o suporte para entender o que aconteceu.');
     if (!response.ok) throw new Error(await mensagemDeErro(response, 'Não foi possível entrar. Tente novamente em instantes.'));
     return response.json() as Promise<LoginResponse>;
   },
 
   async cadastrar({ nome, email, senha }) {
     const response = await postJson('/usuarios', { nome, email, senha, perfil: 'candidato' });
-    if (response.status === 409) throw new Error('Já existe uma conta cadastrada com este e-mail.');
+    if (response.status === 409) throw new Error('Já existe uma conta cadastrada com este e-mail. Use a tela de entrada para acessá-la.');
     if (!response.ok) throw new Error(await mensagemDeErro(response, 'Não foi possível concluir o cadastro. Tente novamente em instantes.'));
     return response.json() as Promise<UsuarioResponse>;
   },

@@ -2,7 +2,7 @@
 
 > Histórico do que já foi desenvolvido e em que etapa o frontend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
-> precisar reconstruir o contexto do zero. Última atualização: 2026-10-01.
+> precisar reconstruir o contexto do zero. Última atualização: 2026-10-02.
 
 ## Visual (redesign de 2026-09-29)
 
@@ -49,7 +49,7 @@ com papel e regra de propriedade de cada endpoint).
   "Sua sessão expirou. Entre novamente." Falha de rede: a `LoadingScreen` mostra o erro com "Tentar
   novamente" e "Voltar ao login" (a sessão é mantida).
 - **Tela na URL (hash):** `#/candidato/{vagas|vaga/{id}|curriculo|candidaturas|documentos}` e
-  `#/rh/{vagas|candidatos[/{vagaId}]|documentos|configuracoes}`. O hash é escrito a cada navegação (o
+  `#/rh/{vagas|candidatos[/{vagaId}]|agenda|documentos|funcionarios|configuracoes}`. O hash é escrito a cada navegação (o
   botão voltar do navegador funciona) e lido ao restaurar. Hash de outro perfil, inexistente, ou
   `configuracoes` para quem não é administrador: cai na tela inicial do perfil. A tela "Candidatura
   enviada" usa o hash de Candidaturas.
@@ -104,7 +104,7 @@ Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-
   lista "Enviados" (Baixar e Substituir) e "Pendentes" (selo "Condicional" e o texto da condição);
   envio antigo sem código mostra o selo "tipo antigo" e não tem Substituir. Depois de cada envio o
   quadro recarrega. O RH abre o mesmo quadro (somente leitura) pelo menu do candidato, "Ver documentos".
-  A página Documentos do RH e do administrador segue agrupada por candidato (`GET /documentos`).
+  A página Documentos do RH e do administrador segue agrupada por candidato, em acordeão (`GET /documentos`).
   O botão "Meus documentos" da tela de candidaturas abre a tela do candidato mesmo sem aprovação (o
   estado vazio explica a regra).
 - **Downloads** (`GET /documentos/{id}/arquivo`, `GET /curriculos/{id}/arquivo`): como blob pelo
@@ -118,8 +118,43 @@ Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-
   ficam desabilitados (o backend responde 403). A tela avisa que mudanças de perfil e status só
   valem no próximo login da pessoa (o token dura 8 horas).
 
+### Presença, agenda, revisão de documentos e contratação (2026-10-02)
+- **Presença (candidato):** `CandidaturaResponse` traz `presenca` (`pendente`, `confirmado` ou nulo) e
+  `presencaConfirmadaEm` (UTC). Em Minhas candidaturas, com a etapa Entrevista e data marcada, `pendente` mostra
+  "Confirmar presença" (`PUT /candidaturas/{id}/entrevista/presenca`, e a candidatura na tela vira a da resposta) e
+  `confirmado` mostra "Presença confirmada em {data e hora de Brasília}". Remarcar volta para `pendente`.
+- **Aba Agenda (RH):** `GET /agenda[?status=pendente|confirmado]`, filtro Todos, Confirmados e Pendentes. É um
+  calendário (`Calendar` do shadcn, em `src/components/ui/calendar.tsx`, que usa `react-day-picker` com o locale
+  `ptBR`): o dia com entrevista ganha um ponto (amarelo se alguma presença está pendente, verde se todas
+  confirmaram) e o dia escolhido lista hora, candidato, vaga e o selo Confirmado ou Pendente. A entrevista é ligada
+  ao dia pela data em Brasília (`brasiliaDay`), não pela do navegador. Sem escolha, abre no próximo dia com
+  entrevista. Recarrega a cada notificação em tempo real.
+- **Aba Documentos (RH):** acordeão (`Accordion` do shadcn, em `src/components/ui/accordion.tsx`, sobre o Radix) com
+  um item por candidato: o cabeçalho traz nome, vagas, quantidade de documentos e quantos estão para analisar, e os
+  documentos ficam recuados dentro dele. Vários itens podem ficar abertos e o estado aberto sobrevive à revisão.
+- **Seletor de vagas (RH, aba Candidatos):** não lista vagas `encerrada`, exceto a que está aberta no momento (aberta
+  pelo botão da tela de vagas), para o campo não ficar vazio. Sem vaga escolhida, a aba abre na primeira não encerrada.
+- **Menu do topo (RH):** com 5 ou 6 abas, entre 768px e 1239px ele perde os ícones e o nome ao lado do avatar e rola
+  na horizontal se ainda faltar espaço (abaixo de 768px vale a barra inferior).
+- **Revisão de documentos:** `DocumentoResponse.status` (`pendente`, `aprovado`, `recusado`) vira selo em toda linha de
+  documento (candidato e RH). O RH vê Aprovar e Recusar (`PUT /documentos/{id}/aprovar` e `/recusar`) no quadro de "Ver
+  documentos" e na aba Documentos. O candidato vê a orientação no arquivo recusado e usa Substituir (reenviar volta a
+  `pendente`).
+- **Contratar:** item do menu do candidato (`POST /candidaturas/{id}/contratar`). Habilitado só com a candidatura
+  `aprovado` e, para cada tipo obrigatório de `GET /documentos/tipos`, um documento da candidatura com status `aprovado`
+  (usa os `GET /documentos` que o `App` já carrega). Desabilitado, mostra o motivo no próprio item. O servidor valida de
+  novo e a `mensagem` do 409 aparece no aviso. No 201 o candidato sai da lista local (a API também deixou de devolver
+  contratados) e a aba Funcionários, que carrega ao abrir, já o mostra.
+- **Aba Funcionários (RH):** `GET /funcionarios`, perfil em `GET /funcionarios/{id}` (dados da contratação e documentos
+  com selo e download) e Inativar com confirmação (`PUT /funcionarios/{id}/inativar`, troca só a linha na lista).
+  `dataContratacao` vem sem fuso; a tela mostra só a data.
+- Os selos e as ações novas dependem das rotas novas do backend: com o backend antigo, as abas Agenda e Funcionários
+  mostram o erro com "Tentar novamente".
+
 ### Notificações (candidato, RH e administrador)
-- `GET /notificacoes` (mais novas primeiro) vira `NotificationItem` (`titulo`, `mensagem`, `lida`).
+- `GET /notificacoes` (mais novas primeiro) vira `NotificationItem` (`tipo`, `titulo`, `mensagem`, `lida`). As de tipo
+  `candidatura` aparecem com tom verde (`data-type` no item); as de `nova_vaga` seguem o estilo padrão. `referenciaId`
+  chega da API mas a tela ainda não o usa.
   O sino aparece nos dois painéis; o contador é a quantidade com `read === false`. Fechar o sino
   marca todas (`PUT /notificacoes/lidas`, 204); clicar numa notificação marca só ela
   (`PUT /notificacoes/{id}/lida`). A tela marca na hora e a API confirma depois.
@@ -137,8 +172,9 @@ Tudo passa por [`src/services/rest-portal-service.ts`](src/services/rest-portal-
 [`src/services/portal-service.ts`](src/services/portal-service.ts) exporta `portalService`: com
 `VITE_USE_MOCK_API=false` os métodos da API real substituem os do mock; sem a flag (padrão) tudo é
 mock, com as mesmas assinaturas. O mock guarda tudo em `localStorage` (chave
-`vagas-plus-mock-db-v3`) e inclui candidaturas, documentos (com a mesma lista de tipos), usuários e
-notificações de exemplo, sem tempo real. O login e o cadastro sempre falam com a API, então até o
+`vagas-plus-mock-db-v4`, que subiu da v3 porque o formato mudou) e inclui candidaturas, documentos (com a mesma lista
+de tipos e status), usuários, funcionários e notificações de exemplo, sem tempo real. Presença, agenda, revisão e
+contratação também existem no mock, com as mesmas regras e mensagens de 409. O login e o cadastro sempre falam com a API, então até o
 mock precisa de um backend para entrar.
 
 ### Como testar localmente
@@ -170,7 +206,7 @@ mock precisa de um backend para entrar.
   saíram da tela de candidatos; voltam quando existir. Um texto do passo a passo da tela
   "Candidatura enviada" ainda cita "triagem assistida" e deveria ser revisto.
 - Recuperação de senha (RF03) não tem tela.
-- Solicitação de documentos pelo RH (RF14) e revisão (aprovar ou pedir ajuste) de documento.
+- Solicitação de documentos pelo RH (RF14). A revisão (aprovar ou recusar) já existe, sem campo para o motivo.
 - Atalho `GET /documentos?candidatoId=` a partir da tela de candidatos: o endpoint existe, mas as
   telas já agrupam por candidato ou usam o quadro da candidatura.
 - Fluxo de "publicar rascunho": uma vaga criada pelo diálogo "Nova vaga" já nasce com

@@ -58,7 +58,7 @@ export async function apiClient<T>(
       },
     });
   } catch {
-    throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
+    throw new Error('Não conseguimos conectar ao servidor. Verifique sua conexão com a internet e tente novamente em instantes.');
   }
 
   // Só reage se o token enviado ainda é o da sessão (um 401 tardio, depois de sair, não deve avisar nada).

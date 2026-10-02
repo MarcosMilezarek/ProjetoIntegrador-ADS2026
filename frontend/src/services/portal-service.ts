@@ -6,6 +6,9 @@ import type {
   CandidateProfile,
   DocumentBoard,
   DocumentType,
+  Employee,
+  EmployeeProfile,
+  InterviewPresence,
   Job,
   JobStatus,
   NewJobInput,
@@ -69,8 +72,8 @@ const seedDocumentTypes: DocumentType[] = [
 ];
 
 const seedDocuments: CandidateDocument[] = [
-  { id: 'doc-rg', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'RG', typeCode: 'rg', format: 'pdf', sizeBytes: 184320, sentAt: '06/08/2026' },
-  { id: 'doc-cpf', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'CPF', typeCode: 'cpf', format: 'pdf', sizeBytes: 90112, sentAt: '06/08/2026' },
+  { id: 'doc-rg', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'RG', typeCode: 'rg', format: 'pdf', status: 'aprovado', sizeBytes: 184320, sentAt: '06/08/2026' },
+  { id: 'doc-cpf', applicationId: 'app-hr', jobId: 'job-hr', jobTitle: 'Analista de Recursos Humanos', candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: 'CPF', typeCode: 'cpf', format: 'pdf', status: 'pendente', sizeBytes: 90112, sentAt: '06/08/2026' },
 ];
 
 const seedUsers: StaffUser[] = [
@@ -80,18 +83,20 @@ const seedUsers: StaffUser[] = [
 ];
 
 const seedNotifications: NotificationItem[] = [
-  { id: 'n1', title: 'Entrevista agendada', description: 'A entrevista para Analista de Dados Jr. está marcada para 25/08.', read: false },
-  { id: 'n2', title: 'Documentos pendentes', description: 'Envie dois documentos para seguir com sua contratação.', read: false },
+  { id: 'n1', type: 'candidatura', title: 'Entrevista agendada', description: 'A entrevista para Analista de Dados Jr. está marcada para 25/08.', read: false },
+  { id: 'n2', type: 'candidatura', title: 'Documentos pendentes', description: 'Envie dois documentos para seguir com sua contratação.', read: false },
+  { id: 'n3', type: 'nova_vaga', title: 'Nova vaga publicada', description: 'Desenvolvedora Front-end React está com inscrições abertas.', read: true },
 ];
 
-type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[]; users: StaffUser[] };
-const storeKey = 'vagas-plus-mock-db-v3';
+type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[]; users: StaffUser[]; employees: Employee[] };
+// v4: documentos com status, notificações com tipo e lista de funcionários.
+const storeKey = 'vagas-plus-mock-db-v4';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function getStore(): Store {
   const saved = localStorage.getItem(storeKey);
   if (saved) return JSON.parse(saved) as Store;
-  const initial = { jobs: seedJobs, profile: seedProfile, applications: seedApplications, documents: seedDocuments, notifications: seedNotifications, users: seedUsers };
+  const initial = { jobs: seedJobs, profile: seedProfile, applications: seedApplications, documents: seedDocuments, notifications: seedNotifications, users: seedUsers, employees: [] };
   localStorage.setItem(storeKey, JSON.stringify(initial));
   return clone(initial);
 }
@@ -118,6 +123,16 @@ export interface PortalService {
   getDocumentBoard(applicationId: string): Promise<DocumentBoard>;
   /** `dateTime` é o valor de um input datetime-local, no horário de Brasília. */
   scheduleInterview(applicationId: string, dateTime: string): Promise<Application>;
+  confirmPresence(applicationId: string): Promise<Application>;
+  /** Entrevistas marcadas, da mais próxima para a mais distante. Sem `status`, traz confirmadas e pendentes. */
+  getAgenda(status?: InterviewPresence): Promise<Candidate[]>;
+  /** Contrata um candidato aprovado cujos documentos obrigatórios estão todos aprovados (senão 409). */
+  hire(applicationId: string): Promise<Employee>;
+  approveDocument(id: string): Promise<CandidateDocument>;
+  refuseDocument(id: string): Promise<CandidateDocument>;
+  getEmployees(): Promise<Employee[]>;
+  getEmployee(id: string): Promise<EmployeeProfile>;
+  deactivateEmployee(id: string): Promise<Employee>;
   getUsers(): Promise<StaffUser[]>;
   createUser(input: StaffUserInput): Promise<StaffUser>;
   updateUser(id: string, input: StaffUserInput): Promise<StaffUser>;
@@ -127,6 +142,19 @@ export interface PortalService {
   markNotificationRead(id: string): Promise<void>;
   /** Notificações em tempo real, até `signal` abortar. Só a API real tem fluxo; o mock não emite nada. */
   subscribeNotifications(onEvent: (event: NotificationEvent) => void, signal: AbortSignal): Promise<void>;
+}
+
+function reviewDocument(id: string, status: 'aprovado' | 'recusado') {
+  const store = getStore();
+  const document = store.documents.find((item) => item.id === id);
+  if (!document) throw new Error('Documento não encontrado.');
+  document.status = status;
+  saveStore(store);
+  return delay(document);
+}
+
+function candidateOf(app: Application): Candidate {
+  return { ...candidateIdentity, applicationId: app.id, jobTitle: app.jobTitle, submittedAt: app.submittedAt, status: app.status, interviewAt: app.interviewAt, presence: app.presence };
 }
 
 export const mockPortalService: PortalService = {
@@ -178,7 +206,8 @@ export const mockPortalService: PortalService = {
   },
   async getCandidates(jobId) {
     const store = getStore();
-    return delay(store.applications.filter((app) => app.jobId === jobId).map((app): Candidate => ({ ...candidateIdentity, applicationId: app.id, submittedAt: app.submittedAt, status: app.status, interviewAt: app.interviewAt })));
+    // Como na API, quem já foi contratado sai da lista de candidatos.
+    return delay(store.applications.filter((app) => app.jobId === jobId && app.status !== 'hired').map(candidateOf));
   },
   async updateApplicationStatus(id, status) { const store = getStore(); const application = store.applications.find((item) => item.id === id); if (!application) throw new Error('Candidatura não encontrada'); application.status = status; saveStore(store); return delay(application); },
   async getDocuments() { return delay(getStore().documents); },
@@ -189,7 +218,7 @@ export const mockPortalService: PortalService = {
     if (application.status !== 'approved' && application.status !== 'hired') throw new Error('Os documentos só podem ser enviados depois da aprovação na vaga.');
     const documentType = seedDocumentTypes.find((item) => item.code === typeCode);
     if (!documentType) throw new Error('Tipo de documento inválido.');
-    const document: CandidateDocument = { id: crypto.randomUUID(), applicationId, jobId: application.jobId, jobTitle: application.jobTitle, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: documentType.name, typeCode, format: file.name.split('.').pop()?.toLowerCase() ?? 'pdf', sizeBytes: file.size, sentAt: today };
+    const document: CandidateDocument = { id: crypto.randomUUID(), applicationId, jobId: application.jobId, jobTitle: application.jobTitle, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, type: documentType.name, typeCode, format: file.name.split('.').pop()?.toLowerCase() ?? 'pdf', status: 'pendente', sizeBytes: file.size, sentAt: today };
     // Um documento por tipo em cada candidatura: reenviar substitui o anterior.
     store.documents = [document, ...store.documents.filter((item) => !(item.applicationId === applicationId && item.typeCode === typeCode))];
     saveStore(store);
@@ -214,8 +243,56 @@ export const mockPortalService: PortalService = {
     if (when.getTime() <= Date.now()) { const message = 'A entrevista deve ser marcada para uma data e hora futuras.'; throw new ApiError(message, 400, { dataHora: message }); }
     application.status = 'interview';
     application.interviewAt = when.toISOString();
+    application.presence = 'pendente';
+    application.presenceConfirmedAt = undefined;
     saveStore(store);
     return delay(application);
+  },
+  async confirmPresence(applicationId) {
+    const store = getStore();
+    const application = store.applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error('Candidatura não encontrada.');
+    if (application.status !== 'interview' || !application.interviewAt) throw new ApiError('Esta candidatura ainda não tem entrevista marcada.', 409);
+    if (application.presence !== 'confirmado') { application.presence = 'confirmado'; application.presenceConfirmedAt = new Date().toISOString(); }
+    saveStore(store);
+    return delay(application);
+  },
+  async getAgenda(status) {
+    const store = getStore();
+    return delay(store.applications
+      .filter((app) => app.status === 'interview' && app.interviewAt && (!status || app.presence === status))
+      .sort((a, b) => (a.interviewAt ?? '').localeCompare(b.interviewAt ?? ''))
+      .map(candidateOf));
+  },
+  async hire(applicationId) {
+    const store = getStore();
+    const application = store.applications.find((item) => item.id === applicationId);
+    if (!application) throw new Error('Candidatura não encontrada.');
+    if (application.status !== 'approved') throw new ApiError('Só é possível contratar candidatos aprovados.', 409);
+    const missing = seedDocumentTypes.filter((type) => type.required && !store.documents.some((doc) => doc.applicationId === applicationId && doc.typeCode === type.code && doc.status === 'aprovado'));
+    if (missing.length > 0) throw new ApiError('Ainda faltam documentos obrigatórios aprovados para contratar.', 409);
+    application.status = 'hired';
+    const employee: Employee = { id: crypto.randomUUID(), applicationId, candidateId: candidateIdentity.id, candidateName: candidateIdentity.name, candidateEmail: candidateIdentity.email, jobId: application.jobId, jobTitle: application.jobTitle, status: 'ativo', hiredAt: today };
+    store.employees = [employee, ...store.employees];
+    saveStore(store);
+    return delay(employee);
+  },
+  async approveDocument(id) { return reviewDocument(id, 'aprovado'); },
+  async refuseDocument(id) { return reviewDocument(id, 'recusado'); },
+  async getEmployees() { return delay(getStore().employees); },
+  async getEmployee(id) {
+    const store = getStore();
+    const employee = store.employees.find((item) => item.id === id);
+    if (!employee) throw new Error('Funcionário não encontrado.');
+    return delay({ employee, documents: store.documents.filter((doc) => doc.applicationId === employee.applicationId) });
+  },
+  async deactivateEmployee(id) {
+    const store = getStore();
+    const employee = store.employees.find((item) => item.id === id);
+    if (!employee) throw new Error('Funcionário não encontrado.');
+    employee.status = 'inativo';
+    saveStore(store);
+    return delay(employee);
   },
   async getUsers() { return delay(getStore().users); },
   async createUser(input) {
@@ -266,6 +343,14 @@ export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API ==
       getDocumentTypes: restPortalService.getDocumentTypes,
       getDocumentBoard: restPortalService.getDocumentBoard,
       scheduleInterview: restPortalService.scheduleInterview,
+      confirmPresence: restPortalService.confirmPresence,
+      getAgenda: restPortalService.getAgenda,
+      hire: restPortalService.hire,
+      approveDocument: restPortalService.approveDocument,
+      refuseDocument: restPortalService.refuseDocument,
+      getEmployees: restPortalService.getEmployees,
+      getEmployee: restPortalService.getEmployee,
+      deactivateEmployee: restPortalService.deactivateEmployee,
       getUsers: restPortalService.getUsers,
       createUser: restPortalService.createUser,
       updateUser: restPortalService.updateUser,
