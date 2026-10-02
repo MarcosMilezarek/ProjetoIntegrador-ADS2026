@@ -1,6 +1,6 @@
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
-import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentType, Job, JobStatus, NewJobInput, NotificationEvent, NotificationItem, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, JobStatus, NewJobInput, NotificationEvent, NotificationItem, NotificationType, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
 import type { Perfil, StatusUsuario } from '@/types/auth';
 
 /** Formato bruto retornado por /vagas (VagaResponse do backend). */
@@ -54,6 +54,10 @@ interface CandidaturaResponseDTO {
   dataCandidatura: string;
   /** Instante em UTC (ex.: 2026-10-20T18:00:00Z) ou nulo. */
   entrevistaEm: string | null;
+  /** Nulo sem entrevista marcada. */
+  presenca: InterviewPresence | null;
+  /** Instante em UTC; nulo enquanto a presença está pendente. */
+  presencaConfirmadaEm: string | null;
 }
 
 /** Formato bruto de /documentos (DocumentoResponse do backend). */
@@ -67,8 +71,28 @@ interface DocumentoResponseDTO {
   tipo: string;
   tipoCodigo: string | null;
   formato: string;
+  status: DocumentStatus;
   tamanhoBytes: number;
   dataEnvio: string;
+}
+
+/** Formato bruto de /funcionarios (FuncionarioResponse do backend). `dataContratacao` vem sem fuso (ex.: 2026-10-02T09:57:10). */
+interface FuncionarioResponseDTO {
+  id: number;
+  candidaturaId: number;
+  candidatoId: number;
+  candidatoNome: string;
+  candidatoEmail: string;
+  vagaId: number;
+  vagaTitulo: string;
+  status: Employee['status'];
+  dataContratacao: string;
+}
+
+/** Formato bruto de /funcionarios/{id}. */
+interface FuncionarioDetalheDTO {
+  funcionario: FuncionarioResponseDTO;
+  documentos: DocumentoResponseDTO[];
 }
 
 /** Formato bruto de /documentos/tipos. */
@@ -93,6 +117,7 @@ interface DocumentosDaCandidaturaDTO {
 /** Formato bruto de /notificacoes (também é o dado de cada evento do fluxo em tempo real). */
 interface NotificacaoDTO {
   id: number;
+  tipo: NotificationType;
   titulo: string;
   mensagem: string;
   lida: boolean;
@@ -141,6 +166,8 @@ function applicationFromResponse(item: CandidaturaResponseDTO): Application {
     submittedAt: formatDate(item.dataCandidatura),
     status: statusFromApi[item.status] ?? 'applied',
     interviewAt: item.entrevistaEm ?? undefined,
+    presence: item.presenca ?? undefined,
+    presenceConfirmedAt: item.presencaConfirmadaEm ?? undefined,
   };
 }
 
@@ -150,9 +177,11 @@ function candidateFromResponse(item: CandidaturaResponseDTO): Candidate {
     name: item.candidatoNome,
     email: item.candidatoEmail,
     applicationId: String(item.id),
+    jobTitle: item.vagaTitulo,
     submittedAt: formatDate(item.dataCandidatura),
     status: statusFromApi[item.status] ?? 'applied',
     interviewAt: item.entrevistaEm ?? undefined,
+    presence: item.presenca ?? undefined,
   };
 }
 
@@ -167,6 +196,7 @@ function documentFromResponse(item: DocumentoResponseDTO): CandidateDocument {
     type: item.tipo,
     typeCode: item.tipoCodigo,
     format: item.formato,
+    status: item.status,
     sizeBytes: item.tamanhoBytes,
     sentAt: formatDate(item.dataEnvio),
   };
@@ -176,8 +206,22 @@ function documentTypeFromResponse(item: TipoDocumentoDTO): DocumentType {
   return { code: item.codigo, name: item.nome, required: item.obrigatorio, condition: item.condicao };
 }
 
+function employeeFromResponse(item: FuncionarioResponseDTO): Employee {
+  return {
+    id: String(item.id),
+    applicationId: String(item.candidaturaId),
+    candidateId: String(item.candidatoId),
+    candidateName: item.candidatoNome,
+    candidateEmail: item.candidatoEmail,
+    jobId: String(item.vagaId),
+    jobTitle: item.vagaTitulo,
+    status: item.status,
+    hiredAt: formatDate(item.dataContratacao),
+  };
+}
+
 function notificationFromResponse(item: NotificacaoDTO): NotificationItem {
-  return { id: String(item.id), title: item.titulo, description: item.mensagem, read: item.lida };
+  return { id: String(item.id), type: item.tipo, title: item.titulo, description: item.mensagem, read: item.lida };
 }
 
 /** Espera `ms`, ou menos se `signal` abortar. */
@@ -400,6 +444,30 @@ export const restPortalService = {
   /** `dateTime` é o valor de um input datetime-local (ex.: "2026-10-20T15:00"), no horário de Brasília (sem horário de verão). */
   scheduleInterview: async (applicationId: string, dateTime: string) =>
     applicationFromResponse(await apiClient<CandidaturaResponseDTO>(`/candidaturas/${applicationId}/entrevista`, { method: 'PUT', body: JSON.stringify({ dataHora: `${dateTime.slice(0, 16)}:00-03:00` }) })),
+
+  /** Candidato: confirma a presença na entrevista marcada. Confirmar de novo é inofensivo. */
+  confirmPresence: async (applicationId: string) =>
+    applicationFromResponse(await apiClient<CandidaturaResponseDTO>(`/candidaturas/${applicationId}/entrevista/presenca`, { method: 'PUT' })),
+
+  /** RH e administrador: entrevistas marcadas, da mais próxima para a mais distante. Sem `status`, traz confirmadas e pendentes. */
+  getAgenda: async (status?: InterviewPresence) =>
+    (await apiClient<CandidaturaResponseDTO[]>(status ? `/agenda?status=${status}` : '/agenda')).map(candidateFromResponse),
+
+  /** Contrata um candidato aprovado. O servidor confere a aprovação e os documentos obrigatórios (409 com a mensagem). */
+  hire: async (applicationId: string) => employeeFromResponse(await apiClient<FuncionarioResponseDTO>(`/candidaturas/${applicationId}/contratar`, { method: 'POST' })),
+
+  approveDocument: async (id: string) => documentFromResponse(await apiClient<DocumentoResponseDTO>(`/documentos/${id}/aprovar`, { method: 'PUT' })),
+
+  refuseDocument: async (id: string) => documentFromResponse(await apiClient<DocumentoResponseDTO>(`/documentos/${id}/recusar`, { method: 'PUT' })),
+
+  getEmployees: async () => (await apiClient<FuncionarioResponseDTO[]>('/funcionarios')).map(employeeFromResponse),
+
+  getEmployee: async (id: string): Promise<EmployeeProfile> => {
+    const item = await apiClient<FuncionarioDetalheDTO>(`/funcionarios/${id}`);
+    return { employee: employeeFromResponse(item.funcionario), documents: item.documentos.map(documentFromResponse) };
+  },
+
+  deactivateEmployee: async (id: string) => employeeFromResponse(await apiClient<FuncionarioResponseDTO>(`/funcionarios/${id}/inativar`, { method: 'PUT' })),
 
   getNotifications: async () => (await apiClient<NotificacaoDTO[]>('/notificacoes')).map(notificationFromResponse),
 

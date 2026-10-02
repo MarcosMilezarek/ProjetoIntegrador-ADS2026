@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ChangeEvent, ComponentProps, FormEvent, ReactNode } from 'react';
-import { Ban, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, ClipboardList, Download, Eye, EyeOff, FileText, Info, LogOut, Inbox, MapPin, Monitor, Moon, MoreHorizontal, Pencil, Plus, Search, Settings, Sun, Trash2, Upload, UsersRound, X } from 'lucide-react';
+import { Ban, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, ClipboardList, Download, Eye, EyeOff, FileText, Info, LogOut, Inbox, MapPin, Monitor, Moon, MoreHorizontal, Pencil, Plus, Search, Settings, Sun, Trash2, Upload, UserCheck, UsersRound, X } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -9,14 +11,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { portalService } from '@/services/portal-service';
+import { ptBR } from 'react-day-picker/locale';
 import { ApiError, setAuthToken, setUnauthorizedHandler } from '@/lib/api-client';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentType, Job, NewJobInput, NotificationItem, ResumeEducation, ResumeExperience, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, NewJobInput, NotificationItem, ResumeEducation, ResumeExperience, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
 import { authService } from './types/auth-service';
 import type { LoginResponse, StatusUsuario } from './types/auth';
 
 type CandidateView = 'jobs' | 'resume' | 'applications' | 'documents' | 'detail' | 'success';
-type HrView = 'jobs' | 'candidates' | 'documents' | 'settings';
+type HrView = 'jobs' | 'candidates' | 'agenda' | 'documents' | 'employees' | 'settings';
 type AppMode = 'login' | 'signup' | 'candidate' | 'hr';
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
 type Tone = 'green' | 'yellow' | 'red' | 'outline' | 'dashed' | undefined;
@@ -27,6 +30,11 @@ const appTone: Record<ApplicationStatus, Tone> = { applied: undefined, reviewing
 const userStatus: Record<StatusUsuario, string> = { ativo: 'Ativo', inativo: 'Inativo', bloqueado: 'Bloqueado' };
 const userTone: Record<StatusUsuario, Tone> = { ativo: 'green', inativo: 'dashed', bloqueado: 'red' };
 const staffRoles: Record<StaffUser['role'], string> = { rh: 'RH', administrador: 'Administrador' };
+const documentStatus: Record<DocumentStatus, string> = { pendente: 'Pendente', aprovado: 'Aprovado', recusado: 'Recusado' };
+const documentTone: Record<DocumentStatus, Tone> = { pendente: 'yellow', aprovado: 'green', recusado: 'red' };
+const presenceStatus: Record<InterviewPresence, string> = { pendente: 'Pendente', confirmado: 'Confirmado' };
+const presenceTone: Record<InterviewPresence, Tone> = { pendente: 'yellow', confirmado: 'green' };
+const sessionExpired = 'Sua sessão terminou por segurança. Entre novamente para continuar.';
 const jobStatus = { rascunho: 'Rascunho', aberta: 'Aberta', encerrada: 'Encerrada' } as const;
 const jobTone: Record<Job['status'], Tone> = { rascunho: 'dashed', aberta: 'green', encerrada: 'red' };
 const stageNames = ['Inscrito', 'Em análise', 'Entrevista', 'Aprovado'];
@@ -35,9 +43,9 @@ const nextStep: Record<ApplicationStatus, string> = {
   reviewing: 'Próximo passo: o RH está avaliando seu currículo.',
   interview: 'Próximo passo: aguarde o contato do RH para a entrevista.',
   approved: 'Você foi aprovado. Envie os documentos de contratação para seguir com a admissão.',
-  rejected: 'Desta vez você não seguiu no processo. Seu currículo continua salvo para as próximas vagas.',
+  rejected: 'Agradecemos o seu interesse. Desta vez você não seguiu nesta vaga, mas seu currículo continua salvo e você pode se candidatar às próximas oportunidades.',
   hired: 'Você foi contratado. Bem-vindo à equipe!',
-  cancelled: 'Esta candidatura foi cancelada. Seu currículo continua salvo para as próximas vagas.',
+  cancelled: 'Esta candidatura foi cancelada, mas seu currículo continua salvo. Quando quiser, veja as outras vagas abertas.',
 };
 const maxUploadBytes = 5 * 1024 * 1024;
 
@@ -80,7 +88,7 @@ function writeSession(account: LoginResponse | null) {
 
 // Trechos do hash por tela: #/candidato/documentos, #/rh/vagas. A tela de sucesso volta para Candidaturas.
 const candidatePaths: Record<CandidateView, string> = { jobs: 'vagas', detail: 'vaga', resume: 'curriculo', applications: 'candidaturas', documents: 'documentos', success: 'candidaturas' };
-const hrPaths: Record<HrView, string> = { jobs: 'vagas', candidates: 'candidatos', documents: 'documentos', settings: 'configuracoes' };
+const hrPaths: Record<HrView, string> = { jobs: 'vagas', candidates: 'candidatos', agenda: 'agenda', documents: 'documentos', employees: 'funcionarios', settings: 'configuracoes' };
 
 function hashOf(mode: 'candidate' | 'hr', candidateView: CandidateView, hrView: HrView, jobId: string) {
   if (mode === 'candidate') return `#/candidato/${candidatePaths[candidateView]}${candidateView === 'detail' && jobId ? `/${jobId}` : ''}`;
@@ -133,7 +141,7 @@ function App() {
       loaded.current = true; setLoadError(null);
     } catch (error) {
       if (mine !== session.current) return;
-      const text = messageOf(error, 'Não foi possível carregar os dados.');
+      const text = messageOf(error, 'Não conseguimos carregar os dados agora. Tente novamente em instantes.');
       if (loaded.current) setNotice({ tone: 'error', text }); else setLoadError(text);
     } finally { if (mine === session.current) setLoading(false); }
   };
@@ -147,11 +155,11 @@ function App() {
       if (success) setNotice({ tone: 'ok', text: success });
       return true;
     } catch (error) {
-      setNotice({ tone: 'error', text: messageOf(error, 'Não foi possível concluir a ação. Tente novamente.') });
+      setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos concluir a ação agora. Tente novamente em instantes.') });
       return false;
     }
   };
-  const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
+  const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs.find((job) => job.status !== 'encerrada') ?? jobs[0];
   const detailJob = jobs.find((job) => job.id === selectedJobId);
   // Status de candidatura e documentos mudam por ação de outras pessoas: recarrega ao abrir essas telas.
   const navigateCandidate = (view: CandidateView) => { setMode('candidate'); setCandidateView(view); window.scrollTo(0, 0); if (currentUser && (view === 'applications' || view === 'documents')) void refresh(currentUser); };
@@ -171,7 +179,7 @@ function App() {
   };
   const exit = () => signOut();
   // Qualquer chamada autenticada que volte 401 (token vencido ou inválido) derruba a sessão.
-  useEffect(() => { setUnauthorizedHandler(() => signOut('Sua sessão expirou. Entre novamente.')); return () => setUnauthorizedHandler(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setUnauthorizedHandler(() => signOut(sessionExpired)); return () => setUnauthorizedHandler(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Vai para a tela do hash (ou para a inicial do perfil) e corrige o hash na URL quando ele não combina. */
   const applyRoute = (perfil: LoginResponse['perfil']) => {
@@ -191,15 +199,15 @@ function App() {
     try {
       const me = await authService.usuarioAtual();
       // Perfil e status só valem no login: se o perfil mudou, o token antigo não serve.
-      if (me.perfil !== saved.perfil) { signOut('Sua sessão expirou. Entre novamente.'); return; }
+      if (me.perfil !== saved.perfil) { signOut(sessionExpired); return; }
       const account: LoginResponse = { id: me.id, nome: me.nome, email: me.email, perfil: me.perfil, token: saved.token };
       writeSession(account);
       setCurrentUser(account);
       applyRoute(account.perfil);
       setRestoring(false);
     } catch (error) {
-      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) signOut('Sua sessão expirou. Entre novamente.');
-      else setRestoreError(messageOf(error, 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.'));
+      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) signOut(sessionExpired);
+      else setRestoreError(messageOf(error, 'Não conseguimos conectar ao servidor. Verifique sua conexão com a internet e tente novamente em instantes.'));
     }
   };
   useEffect(() => { void restore(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -257,7 +265,7 @@ function App() {
         setNotice({ tone: 'error', text: 'Revise os campos destacados no currículo.' });
         return { ok: false, campos: error.campos };
       }
-      setNotice({ tone: 'error', text: messageOf(error, 'Não foi possível salvar o currículo. Tente novamente.') });
+      setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos salvar seu currículo agora. O que você preencheu continua na tela: tente salvar de novo em instantes.') });
       return { ok: false };
     }
   };
@@ -270,13 +278,13 @@ function App() {
       return null;
     } catch (error) {
       if (error instanceof ApiError && error.status === 413) return 'O arquivo passa de 5 MB. Envie uma versão menor.';
-      return messageOf(error, 'Não foi possível enviar o PDF. Tente novamente.');
+      return messageOf(error, 'Não conseguimos enviar o PDF agora. Tente novamente em instantes.');
     }
   };
   const downloadResume = async () => {
     if (!profile?.id) return;
     try { saveBlob(await portalService.downloadResumeFile(profile.id), profile.arquivo?.nomeOriginal ?? 'curriculo.pdf'); }
-    catch (error) { setNotice({ tone: 'error', text: messageOf(error, 'Não foi possível baixar o PDF.') }); }
+    catch (error) { setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos baixar o PDF agora. Tente novamente em instantes.') }); }
   };
   /** Envia um documento de contratação. Devolve a mensagem de erro para o formulário, ou null quando foi aceito. */
   const uploadDocument = async (applicationId: string, typeCode: string, file: File) => {
@@ -284,7 +292,7 @@ function App() {
       await portalService.uploadDocument(applicationId, typeCode, file);
       setNotice({ tone: 'ok', text: 'Documento enviado.' });
       return null;
-    } catch (error) { return messageOf(error, 'Não foi possível enviar o documento. Tente novamente.'); }
+    } catch (error) { return messageOf(error, 'Não conseguimos enviar o documento agora. Tente novamente em instantes.'); }
   };
   /** Marca a entrevista. O 400 de `dataHora` ("deve ser futura") volta para o campo do diálogo. */
   const scheduleInterview = async (applicationId: string, dateTime: string) => {
@@ -300,25 +308,38 @@ function App() {
   };
   const downloadDocument = async (doc: CandidateDocument) => {
     try { saveBlob(await portalService.downloadDocument(doc.id), `${doc.type}.${doc.format}`); }
-    catch (error) { setNotice({ tone: 'error', text: messageOf(error, 'Não foi possível baixar o documento.') }); }
+    catch (error) { setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos baixar o documento agora. Tente novamente em instantes.') }); }
   };
+  /** Candidato confirma a presença na entrevista; a candidatura na tela passa a ser a da resposta. */
+  const confirmPresence = async (applicationId: string) => {
+    try {
+      const updated = await portalService.confirmPresence(applicationId);
+      setApplications((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setNotice({ tone: 'ok', text: 'Presença confirmada.' });
+    } catch (error) { setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos confirmar sua presença agora. Tente novamente em instantes.') }); }
+  };
+  // O RH revisa um documento e contrata. Os dois recarregam os dados; o servidor valida as regras e a mensagem do 409 aparece no aviso.
+  const reviewDocument = (doc: CandidateDocument, approve: boolean) => act(() => approve ? portalService.approveDocument(doc.id) : portalService.refuseDocument(doc.id), approve ? 'Documento aprovado.' : 'Documento recusado.');
+  const hire = (applicationId: string) => act(() => portalService.hire(applicationId), 'Candidato contratado. Ele agora aparece em Funcionários.');
   return <>
     {mode === 'candidate' && profile && <CandidateLayout user={currentUser} active={candidateView} onNavigate={navigateCandidate} onExit={exit} notifications={notifications} onReadNotifications={markRead} onReadNotification={markOneRead}>
       {candidateView === 'jobs' && <JobsPage jobs={jobs} applications={applications} resumeEmpty={!profile.id} onEditResume={() => navigateCandidate('resume')} onOpen={(id) => { setSelectedJobId(id); navigateCandidate('detail'); }} />}
       {candidateView === 'detail' && (detailJob
         ? <JobDetail job={detailJob} profile={profile} userName={currentUser.nome} applied={applications.some((item) => item.jobId === detailJob.id)} onBack={() => navigateCandidate('jobs')} onEditResume={() => navigateCandidate('resume')} onApply={async () => { if (await act(() => portalService.apply(detailJob.id))) navigateCandidate('success'); }} />
-        : <main className="page"><Empty title="Vaga não encontrada" text="Ela pode ter sido encerrada. Veja as outras vagas abertas." action={<Button onClick={() => navigateCandidate('jobs')}>Ver vagas</Button>} /></main>)}
+        : <main className="page"><Empty title="Esta vaga não está mais disponível" text="Ela pode ter sido encerrada, mas há outras oportunidades abertas esperando por você." action={<Button onClick={() => navigateCandidate('jobs')}>Ver vagas</Button>} /></main>)}
       {candidateView === 'success' && <SuccessPage job={selectedJob} onApplications={() => navigateCandidate('applications')} onJobs={() => navigateCandidate('jobs')} />}
       {candidateView === 'resume' && <ResumePage profile={profile} userName={currentUser.nome} userEmail={currentUser.email} onSave={saveResume} onUpload={uploadResume} onDownload={downloadResume} />}
-      {candidateView === 'applications' && <ApplicationsPage applications={applications} onDocuments={() => navigateCandidate('documents')} onJobs={() => navigateCandidate('jobs')} />}
+      {candidateView === 'applications' && <ApplicationsPage applications={applications} onDocuments={() => navigateCandidate('documents')} onJobs={() => navigateCandidate('jobs')} onConfirmPresence={confirmPresence} />}
       {candidateView === 'documents' && <DocumentsPage applications={applications} reloadKey={liveVersion} onBack={() => navigateCandidate('applications')} onUpload={uploadDocument} onDownload={downloadDocument} />}
     </CandidateLayout>}
     {mode === 'hr' && <HrLayout userName={currentUser.nome} role={currentUser.perfil} active={hrView} onNavigate={navigateHr} onExit={exit} notifications={notifications} onReadNotifications={markRead} onReadNotification={markOneRead}>
       {hrView === 'jobs' && <HrJobsPage jobs={jobs} onCandidates={(id) => { setSelectedJobId(id); navigateHr('candidates'); }} onSaved={(input) => act(() => portalService.saveJob(input), input.id ? 'Vaga atualizada.' : 'Vaga publicada.')} onClosed={(id) => act(() => portalService.closeJob(id), 'Vaga encerrada.')} />}
       {hrView === 'candidates' && (selectedJob
-        ? <HrCandidatesPage job={selectedJob} jobs={jobs} reloadKey={liveVersion} onSelectJob={setSelectedJobId} onBack={() => navigateHr('jobs')} onUpdate={(id, status) => act(() => portalService.updateApplicationStatus(id, status), 'Etapa do candidato atualizada.')} onSchedule={scheduleInterview} onDownload={downloadDocument} />
+        ? <HrCandidatesPage job={selectedJob} jobs={jobs} documents={documents} reloadKey={liveVersion} onSelectJob={setSelectedJobId} onBack={() => navigateHr('jobs')} onUpdate={(id, status) => act(() => portalService.updateApplicationStatus(id, status), 'Etapa do candidato atualizada.')} onSchedule={scheduleInterview} onDownload={downloadDocument} onReview={reviewDocument} onHire={hire} />
         : <section className="hr-page"><Empty title="Nenhuma vaga cadastrada" text="Crie uma vaga para começar a receber candidatos." action={<Button onClick={() => navigateHr('jobs')}>Ir para vagas</Button>} /></section>)}
-      {hrView === 'documents' && <HrDocumentsPage documents={documents} onDownload={downloadDocument} />}
+      {hrView === 'agenda' && <HrAgendaPage reloadKey={liveVersion} />}
+      {hrView === 'documents' && <HrDocumentsPage documents={documents} onDownload={downloadDocument} onReview={reviewDocument} />}
+      {hrView === 'employees' && <HrEmployeesPage onNotice={setNotice} onDownload={downloadDocument} />}
       {hrView === 'settings' && currentUser.perfil === 'administrador' && <SettingsPage currentUserId={String(currentUser.id)} onNotice={setNotice} />}
     </HrLayout>}
     <Toast notice={notice} onClose={closeNotice} />
@@ -488,7 +509,7 @@ function Notifications({ items, onRead, onReadOne }: { items: NotificationItem[]
       <div className="menu-title">Notificações</div>
       <DropdownMenuSeparator />
       {items.length === 0 && <p className="px-2.5 py-3 text-muted-foreground">Nenhuma notificação por enquanto.</p>}
-      {items.map((item) => <DropdownMenuItem key={item.id} className={`notification-item ${item.read ? '' : 'unread'}`} onSelect={(event) => { event.preventDefault(); if (!item.read) onReadOne(item.id); }}><strong>{item.title}</strong><small>{item.description}</small></DropdownMenuItem>)}
+      {items.map((item) => <DropdownMenuItem key={item.id} className={`notification-item ${item.read ? '' : 'unread'}`} data-type={item.type} onSelect={(event) => { event.preventDefault(); if (!item.read) onReadOne(item.id); }}><strong>{item.title}</strong><small>{item.description}</small></DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;
 }
@@ -515,7 +536,7 @@ function JobsPage({ jobs, applications, resumeEmpty, onOpen, onEditResume }: { j
           </button>;
         })}</div>
       : open.length === 0
-        ? <div className="lineup"><Empty title="Nenhuma vaga aberta no momento" text="Novas vagas aparecem aqui assim que o RH publicar. Enquanto isso, deixe seu currículo em dia." /></div>
+        ? <div className="lineup"><Empty title="Nenhuma vaga aberta no momento" text="Novas vagas aparecem aqui assim que o RH publicar. Enquanto isso, deixe seu currículo em dia para se candidatar com rapidez." /></div>
         : <div className="lineup"><Empty title="Nenhuma vaga com esses filtros" text="Tente outro cargo ou outra modalidade." action={<Button variant="outline" onClick={clear}>Limpar filtros</Button>} /></div>}
   </main>;
 }
@@ -773,20 +794,27 @@ function TagInput({ value, onChange, labelId }: { value: string[]; onChange: (va
 }
 
 /* ---------- Candidaturas e documentos ---------- */
-function ApplicationsPage({ applications, onDocuments, onJobs }: { applications: Application[]; onDocuments: () => void; onJobs: () => void }) {
+function ApplicationsPage({ applications, onDocuments, onJobs, onConfirmPresence }: { applications: Application[]; onDocuments: () => void; onJobs: () => void; onConfirmPresence: (applicationId: string) => Promise<void> }) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const confirmPresence = async (applicationId: string) => { setConfirming(applicationId); await onConfirmPresence(applicationId); setConfirming(null); };
   return <main className="page narrow">
     <div className="page-head"><div><h1 className="display">Minhas candidaturas</h1><p>{applications.length === 1 ? '1 candidatura em andamento.' : `${applications.length} candidaturas em andamento.`}</p></div><Button variant="outline" onClick={onDocuments}><FileText />Meus documentos</Button></div>
     {applications.length === 0
-      ? <div className="lineup"><Empty title="Você ainda não se candidatou" text="Encontre uma vaga aberta e candidate-se com o seu currículo." action={<Button onClick={onJobs}>Ver vagas abertas</Button>} /></div>
-      : <div className="stack">{applications.map((app) => <section className="panel application" data-status={app.status} key={app.id}>
-          <div className="panel-head"><div><h2>{app.jobTitle}</h2><p>Enviada em {formatDate(app.submittedAt)}{app.jobStatus !== 'aberta' && ` · Vaga ${jobStatus[app.jobStatus].toLowerCase()}`}</p></div><Chip tone={appTone[app.status]}>{appStatus[app.status]}</Chip></div>
-          <Stages status={app.status} />
-          <div className="panel-foot">
-            <p className="next-step">{app.status === 'interview' && app.interviewAt ? `Entrevista marcada para ${formatDateTime(app.interviewAt)} (horário de Brasília).` : nextStep[app.status]}</p>
-            {(app.status === 'approved' || app.status === 'hired') && <Button onClick={onDocuments}><Upload />Enviar documentos</Button>}
-            {(app.status === 'rejected' || app.status === 'cancelled') && <Button variant="outline" onClick={onJobs}>Ver outras vagas</Button>}
-          </div>
-        </section>)}</div>}
+      ? <div className="lineup"><Empty title="Você ainda não tem candidaturas" text="Quando encontrar uma vaga que combine com você, é só se candidatar com o seu currículo." action={<Button onClick={onJobs}>Ver vagas abertas</Button>} /></div>
+      : <div className="stack">{applications.map((app) => {
+          const scheduled = app.status === 'interview' && app.interviewAt;
+          return <section className="panel application" data-status={app.status} key={app.id}>
+            <div className="panel-head"><div><h2>{app.jobTitle}</h2><p>Enviada em {formatDate(app.submittedAt)}{app.jobStatus !== 'aberta' && ` · Vaga ${jobStatus[app.jobStatus].toLowerCase()}`}</p></div><Chip tone={appTone[app.status]}>{appStatus[app.status]}</Chip></div>
+            <Stages status={app.status} />
+            <div className="panel-foot">
+              <p className="next-step">{scheduled ? `Entrevista marcada para ${formatDateTime(app.interviewAt)} (horário de Brasília).` : nextStep[app.status]}</p>
+              {scheduled && app.presence === 'pendente' && <Button disabled={confirming === app.id} onClick={() => void confirmPresence(app.id)}><Check />{confirming === app.id ? 'Confirmando…' : 'Confirmar presença'}</Button>}
+              {scheduled && app.presence === 'confirmado' && <Chip tone="green">Presença confirmada{app.presenceConfirmedAt ? ` em ${formatDateTime(app.presenceConfirmedAt)}` : ''}</Chip>}
+              {(app.status === 'approved' || app.status === 'hired') && <Button onClick={onDocuments}><Upload />Enviar documentos</Button>}
+              {(app.status === 'rejected' || app.status === 'cancelled') && <Button variant="outline" onClick={onJobs}>Ver outras vagas</Button>}
+            </div>
+          </section>;
+        })}</div>}
   </main>;
 }
 
@@ -801,7 +829,7 @@ function Stages({ status }: { status: ApplicationStatus }) {
 
 /** Valida o arquivo de um documento no cliente: o backend aceita PDF e DOCX de até 5 MB. */
 function checkDocumentFile(file: File): string | null {
-  if (!/\.(pdf|docx)$/i.test(file.name)) return 'Só aceitamos arquivos PDF ou DOCX.';
+  if (!/\.(pdf|docx)$/i.test(file.name)) return 'Só aceitamos arquivos PDF ou DOCX. Converta o documento e envie de novo.';
   if (file.size > maxUploadBytes) return 'O arquivo passa de 5 MB. Envie uma versão menor.';
   return null;
 }
@@ -827,7 +855,7 @@ function DocumentsPage({ applications, reloadKey, onBack, onUpload, onDownload }
     <button type="button" className="back-link" onClick={onBack}><ChevronLeft />Candidaturas</button>
     <div className="page-head"><div><h1 className="display">Documentos</h1><p>Envie os documentos de contratação das vagas em que você foi aprovado.</p></div></div>
     {eligible.length === 0
-      ? <div className="lineup"><Empty title="Documentos ainda não liberados" text="Os documentos são liberados quando você for aprovado em uma vaga." /></div>
+      ? <div className="lineup"><Empty title="Documentos ainda não liberados" text="Os documentos de contratação são liberados quando você for aprovado em uma vaga. Acompanhe suas candidaturas para saber quando isso acontecer." /></div>
       : <>
           <DocumentForm applications={eligible} onUpload={upload} />
           <div className="stack">{eligible.map((app) => <DocumentBoardView key={app.id} applicationId={app.id} reloadKey={`${version}.${reloadKey}`} onDownload={onDownload} onReplace={(typeCode, file) => upload(app.id, typeCode, file)} />)}</div>
@@ -843,7 +871,7 @@ function DocumentForm({ applications, onUpload }: { applications: Application[];
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { portalService.getDocumentTypes().then(setTypes).catch((problem) => setError(messageOf(problem, 'Não foi possível carregar os tipos de documento.'))); }, []);
+  useEffect(() => { portalService.getDocumentTypes().then(setTypes).catch((problem) => setError(messageOf(problem, 'Não conseguimos carregar os tipos de documento agora. Tente novamente em instantes.'))); }, []);
   // A candidatura escolhida pode sair da lista (ex.: o RH mudou a etapa): volta para a primeira.
   const selected = applications.some((app) => app.id === applicationId) ? applicationId : applications[0].id;
   const choose = (event: ChangeEvent<HTMLInputElement>) => {
@@ -881,22 +909,31 @@ function DocumentForm({ applications, onUpload }: { applications: Application[];
 
 /**
  * Quadro de documentos de uma candidatura: enviados, pendentes e quantos obrigatórios já foram.
- * O candidato e o RH veem o mesmo quadro; só o candidato recebe `onReplace` e pode trocar arquivos.
+ * O candidato e o RH veem o mesmo quadro; só o candidato recebe `onReplace` e pode trocar arquivos,
+ * e só o RH recebe `onReview` para aprovar ou recusar.
  */
-function DocumentBoardView({ applicationId, reloadKey, onDownload, onReplace }: {
+function DocumentBoardView({ applicationId, reloadKey, onDownload, onReplace, onReview }: {
   applicationId: string; reloadKey: string | number;
   onDownload: (doc: CandidateDocument) => Promise<void>;
   onReplace?: (typeCode: string, file: File) => Promise<string | null>;
+  onReview?: ReviewDocument;
 }) {
   const [board, setBoard] = useState<DocumentBoard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Sobe a cada revisão aceita: o quadro recarrega com o status novo.
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let current = true;
     portalService.getDocumentBoard(applicationId)
       .then((next) => { if (current) { setBoard(next); setError(null); } })
-      .catch((problem) => { if (current) setError(messageOf(problem, 'Não foi possível carregar os documentos.')); });
+      .catch((problem) => { if (current) setError(messageOf(problem, 'Não conseguimos carregar os documentos agora. Tente novamente em instantes.')); });
     return () => { current = false; };
-  }, [applicationId, reloadKey]);
+  }, [applicationId, reloadKey, version]);
+  const review: ReviewDocument | undefined = onReview && (async (doc, approve) => {
+    const ok = await onReview(doc, approve);
+    if (ok) setVersion((current) => current + 1);
+    return ok;
+  });
   if (error && !board) return <div className="lineup"><Empty title="Não foi possível carregar os documentos" text={error} /></div>;
   if (!board) return <div className="lineup"><p className="empty muted">Carregando documentos…</p></div>;
   return <section className="lineup doc-group" aria-label={`Documentos de ${board.jobTitle}`}>
@@ -906,7 +943,7 @@ function DocumentBoardView({ applicationId, reloadKey, onDownload, onReplace }: 
     </div>
     <h3 className="doc-subhead">Enviados <span>{board.sent.length}</span></h3>
     {board.sent.length > 0
-      ? board.sent.map((doc) => <DocumentRow key={doc.id} doc={doc} onDownload={onDownload} onReplace={onReplace} />)
+      ? board.sent.map((doc) => <DocumentRow key={doc.id} doc={doc} onDownload={onDownload} onReplace={onReplace} onReview={review} />)
       : <p className="doc-none">Nenhum documento enviado ainda.</p>}
     <h3 className="doc-subhead">Pendentes <span>{board.pending.length}</span></h3>
     {board.pending.length > 0
@@ -919,12 +956,17 @@ function DocumentBoardView({ applicationId, reloadKey, onDownload, onReplace }: 
   </section>;
 }
 
-function DocumentRow({ doc, onDownload, onReplace }: {
+/** Aprova ou recusa um documento; devolve se a revisão foi aceita. */
+type ReviewDocument = (doc: CandidateDocument, approve: boolean) => Promise<boolean>;
+
+function DocumentRow({ doc, onDownload, onReplace, onReview }: {
   doc: CandidateDocument; onDownload: (doc: CandidateDocument) => Promise<void>;
   /** Só aparece em envios com tipo da lista: trocar o arquivo é reenviar o mesmo tipo. */
   onReplace?: (typeCode: string, file: File) => Promise<string | null>;
+  /** Só o RH revisa: aprovar ou recusar o documento enviado. */
+  onReview?: ReviewDocument;
 }) {
-  const [busy, setBusy] = useState<'download' | 'replace' | null>(null);
+  const [busy, setBusy] = useState<'download' | 'replace' | 'approve' | 'refuse' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const replace = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -938,9 +980,14 @@ function DocumentRow({ doc, onDownload, onReplace }: {
   };
   return <div className="doc-row">
     <span className="doc-icon"><FileText /></span>
-    <div><strong>{doc.type}</strong><small>{doc.jobTitle} · {doc.format.toUpperCase()} · {formatBytes(doc.sizeBytes)} · enviado em {formatDate(doc.sentAt)}</small>{error && <small className="field-error" role="alert">{error}</small>}</div>
+    <div><strong>{doc.type}</strong><small>{doc.jobTitle} · {doc.format.toUpperCase()} · {formatBytes(doc.sizeBytes)} · enviado em {formatDate(doc.sentAt)}</small>{onReplace && doc.status === 'recusado' && <small>Este arquivo não foi aceito. Substitua por uma nova versão para o RH analisar de novo.</small>}{error && <small className="field-error" role="alert">{error}</small>}</div>
     <div className="doc-side">
+      <Chip tone={documentTone[doc.status]}>{documentStatus[doc.status]}</Chip>
       {doc.typeCode === null && <Chip tone="dashed">tipo antigo</Chip>}
+      {onReview && <>
+        <Button variant="outline" disabled={busy !== null || doc.status === 'aprovado'} onClick={async () => { setBusy('approve'); await onReview(doc, true); setBusy(null); }}><Check />{busy === 'approve' ? 'Aprovando…' : 'Aprovar'}<span className="sr-only"> {doc.type}</span></Button>
+        <Button variant="outline" disabled={busy !== null || doc.status === 'recusado'} onClick={async () => { setBusy('refuse'); await onReview(doc, false); setBusy(null); }}><X />{busy === 'refuse' ? 'Recusando…' : 'Recusar'}<span className="sr-only"> {doc.type}</span></Button>
+      </>}
       {onReplace && doc.typeCode && <>
         <input ref={fileInput} type="file" accept=".pdf,.docx" hidden aria-label={`Novo arquivo de ${doc.type}`} onChange={replace} />
         <Button variant="outline" disabled={busy !== null} onClick={() => fileInput.current?.click()}><Upload />{busy === 'replace' ? 'Enviando…' : 'Substituir'}<span className="sr-only"> {doc.type}</span></Button>
@@ -950,8 +997,8 @@ function DocumentRow({ doc, onDownload, onReplace }: {
   </div>;
 }
 
-/** Documentos do RH e do administrador: uma seção por candidato, com as vagas e os arquivos dele. */
-function HrDocumentsPage({ documents, onDownload }: { documents: CandidateDocument[]; onDownload: (doc: CandidateDocument) => Promise<void> }) {
+/** Documentos do RH e do administrador: um item expansível por candidato, com as vagas dele no cabeçalho e os arquivos dentro. */
+function HrDocumentsPage({ documents, onDownload, onReview }: { documents: CandidateDocument[]; onDownload: (doc: CandidateDocument) => Promise<void>; onReview: ReviewDocument }) {
   const groups = useMemo(() => {
     const byCandidate = new Map<string, { id: string; name: string; jobs: string[]; documents: CandidateDocument[] }>();
     for (const doc of documents) {
@@ -963,16 +1010,24 @@ function HrDocumentsPage({ documents, onDownload }: { documents: CandidateDocume
     return [...byCandidate.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [documents]);
   return <section className="hr-page">
-    <div className="page-head"><div><h1 className="display">Documentos de contratação</h1><p>Arquivos enviados pelos candidatos aprovados, separados por candidato.</p></div></div>
+    <div className="page-head"><div><h1 className="display">Documentos de contratação</h1><p>Arquivos enviados pelos candidatos aprovados. Abra um candidato para ver e revisar os documentos dele.</p></div></div>
     {groups.length === 0
       ? <div className="lineup"><Empty title="Nenhum documento enviado" text="Os documentos enviados pelos candidatos aprovados aparecem aqui." /></div>
-      : <div className="stack">{groups.map((group) => <section className="lineup doc-group" key={group.id} aria-label={`Documentos de ${group.name}`}>
-          <div className="doc-group-head">
-            <div className="person"><span className="initials">{initials(group.name)}</span><span><strong>{group.name}</strong><small>{group.jobs.join(' · ')}</small></span></div>
-            <Chip>{group.documents.length === 1 ? '1 documento' : `${group.documents.length} documentos`}</Chip>
-          </div>
-          {group.documents.map((doc) => <DocumentRow key={doc.id} doc={doc} onDownload={onDownload} />)}
-        </section>)}</div>}
+      : <Accordion type="multiple" className="stack">{groups.map((group) => {
+          const toReview = group.documents.filter((doc) => doc.status === 'pendente').length;
+          return <AccordionItem value={group.id} key={group.id} className="lineup doc-candidate">
+            <AccordionTrigger className="doc-candidate-head">
+              <span className="person"><span className="initials">{initials(group.name)}</span><span><strong>{group.name}</strong><small>{group.jobs.join(' · ')}</small></span></span>
+              <span className="doc-candidate-meta">
+                <Chip>{group.documents.length === 1 ? '1 documento' : `${group.documents.length} documentos`}</Chip>
+                {toReview > 0 && <Chip tone="yellow">{toReview === 1 ? '1 para analisar' : `${toReview} para analisar`}</Chip>}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="doc-items">
+              {group.documents.map((doc) => <DocumentRow key={doc.id} doc={doc} onDownload={onDownload} onReview={onReview} />)}
+            </AccordionContent>
+          </AccordionItem>;
+        })}</Accordion>}
   </section>;
 }
 
@@ -980,7 +1035,9 @@ function HrDocumentsPage({ documents, onDownload }: { documents: CandidateDocume
 const hrNav: { view: HrView; label: string; icon: typeof Bell }[] = [
   { view: 'jobs', label: 'Vagas', icon: BriefcaseBusiness },
   { view: 'candidates', label: 'Candidatos', icon: UsersRound },
+  { view: 'agenda', label: 'Agenda', icon: CalendarDays },
   { view: 'documents', label: 'Documentos', icon: FileText },
+  { view: 'employees', label: 'Funcionários', icon: UserCheck },
 ];
 const settingsNav = { view: 'settings' as const, label: 'Configurações', icon: Settings };
 
@@ -988,6 +1045,8 @@ function HrLayout({ active, children, onNavigate, onExit, userName, role, notifi
   // Esconder a aba é só conveniência: quem barra o acesso às Configurações é o backend (403).
   const roleLabel = role === 'administrador' ? 'Administrador' : 'Recursos Humanos';
   const links = (role === 'administrador' ? [...hrNav, settingsNav] : hrNav).map(({ view, label, icon: Icon }) => <button key={view} type="button" aria-current={active === view ? 'page' : undefined} onClick={() => onNavigate(view)}><Icon />{label}</button>);
+  // Em telas estreitas o menu (no topo ou na barra de baixo) rola quando as abas não cabem: a aba atual não pode ficar escondida.
+  useEffect(() => { document.querySelectorAll('.topnav [aria-current="page"], .tabbar [aria-current="page"]').forEach((tab) => tab.scrollIntoView({ block: 'nearest', inline: 'nearest' })); }, [active]);
   return <div className="shell">
     <Glow />
     <header className="glass-nav app-nav">
@@ -1050,11 +1109,11 @@ function HrJobsPage({ jobs, onCandidates, onSaved, onClosed }: { jobs: Job[]; on
   </section>;
 }
 
-function ConfirmDialog({ title, text, confirm, busyLabel, onCancel, onConfirm }: { title: string; text: string; confirm: string; busyLabel: string; onCancel: () => void; onConfirm: () => Promise<void> }) {
+function ConfirmDialog({ title, text, confirm, busyLabel, destructive = true, onCancel, onConfirm }: { title: string; text: string; confirm: string; busyLabel: string; destructive?: boolean; onCancel: () => void; onConfirm: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   return <Dialog open onOpenChange={(open) => !open && onCancel()}><DialogContent className="job-dialog confirm-dialog">
     <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{text}</DialogDescription></DialogHeader>
-    <DialogFooter><Button variant="outline" onClick={onCancel}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }}><Ban />{busy ? busyLabel : confirm}</Button></DialogFooter>
+    <DialogFooter><Button variant="outline" onClick={onCancel}>Cancelar</Button><Button variant={destructive ? 'destructive' : 'default'} disabled={busy} onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }}>{destructive && <Ban />}{busy ? busyLabel : confirm}</Button></DialogFooter>
   </DialogContent></Dialog>;
 }
 
@@ -1087,21 +1146,41 @@ function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; o
 
 type ScheduleProblem = { field: boolean; message: string } | null;
 
-function HrCandidatesPage({ job, jobs, reloadKey, onSelectJob, onBack, onUpdate, onSchedule, onDownload }: {
+/**
+ * Por que o botão Contratar está desabilitado, ou null quando pode contratar: a candidatura está aprovada e todo tipo
+ * obrigatório tem documento aprovado nela. Só orienta a tela; quem decide é o servidor (409).
+ */
+function hireBlock(candidate: Candidate, types: DocumentType[] | null, documents: CandidateDocument[]): string | null {
+  if (candidate.status !== 'approved') return 'Disponível depois que o candidato for aprovado.';
+  if (!types) return 'Conferindo os documentos obrigatórios.';
+  const missing = types.filter((type) => type.required && !documents.some((doc) => doc.applicationId === candidate.applicationId && doc.typeCode === type.code && doc.status === 'aprovado')).length;
+  if (missing === 0) return null;
+  return missing === 1 ? 'Falta 1 documento obrigatório aprovado.' : `Faltam ${missing} documentos obrigatórios aprovados.`;
+}
+
+function HrCandidatesPage({ job, jobs, documents, reloadKey, onSelectJob, onBack, onUpdate, onSchedule, onDownload, onReview, onHire }: {
   job: Job; jobs: Job[];
+  /** Documentos das vagas do RH (GET /documentos): servem à regra do botão Contratar. */
+  documents: CandidateDocument[];
   /** Sobe quando chega uma notificação: a lista de inscritos e os quadros abertos recarregam. */
   reloadKey: number;
   onSelectJob: (id: string) => void; onBack: () => void;
   onUpdate: (id: string, status: ApplicationStatus) => Promise<boolean>;
   onSchedule: (applicationId: string, dateTime: string) => Promise<ScheduleProblem>;
   onDownload: (doc: CandidateDocument) => Promise<void>;
+  onReview: ReviewDocument;
+  onHire: (applicationId: string) => Promise<boolean>;
 }) {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null); const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState(''); const [status, setStatus] = useState('all');
   const [rejecting, setRejecting] = useState<Candidate | null>(null);
+  const [hiring, setHiring] = useState<Candidate | null>(null);
   const [viewing, setViewing] = useState<Candidate | null>(null);
   const [scheduling, setScheduling] = useState<Candidate | null>(null);
   const [documentsOf, setDocumentsOf] = useState<Candidate | null>(null);
+  // Tipos de documento exigidos: sem eles (ainda ou por falha) o Contratar fica desabilitado.
+  const [types, setTypes] = useState<DocumentType[] | null>(null);
+  useEffect(() => { portalService.getDocumentTypes().then(setTypes).catch(() => undefined); }, []);
   const load = () => portalService.getCandidates(job.id).then((items) => { setCandidates(items); setLoadError(null); }).catch((error) => setLoadError(messageOf(error, 'Não foi possível carregar os inscritos.')));
   useEffect(() => { setCandidates(null); setLoadError(null); void load(); }, [job.id]);
   useEffect(() => { if (reloadKey > 0) void load(); }, [reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1112,11 +1191,11 @@ function HrCandidatesPage({ job, jobs, reloadKey, onSelectJob, onBack, onUpdate,
     <button type="button" className="back-link" onClick={onBack}><ChevronLeft />Vagas</button>
     <div className="page-head">
       <div><h1 className="display">Candidatos</h1><p>{candidates === null ? (loadError ? 'Inscritos indisponíveis.' : 'Carregando inscritos…') : `${candidates.length} ${candidates.length === 1 ? 'inscrito' : 'inscritos'} · publicada em ${formatDate(job.publishedAt)}`}</p></div>
-      <Select value={job.id} onValueChange={onSelectJob}><SelectTrigger className="job-picker" aria-label="Vaga"><SelectValue /></SelectTrigger><SelectContent>{jobs.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
+      <Select value={job.id} onValueChange={onSelectJob}><SelectTrigger className="job-picker" aria-label="Vaga"><SelectValue /></SelectTrigger><SelectContent>{jobs.filter((item) => item.status !== 'encerrada' || item.id === job.id).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
     </div>
     <div className="toolbar">
       <label className="search"><span className="sr-only">Buscar candidato</span><Search /><Input type="search" placeholder="Buscar candidato" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-      <Select value={status} onValueChange={setStatus}><SelectTrigger className="min-w-48" aria-label="Etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as etapas</SelectItem>{Object.entries(appStatus).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+      <Select value={status} onValueChange={setStatus}><SelectTrigger className="min-w-48" aria-label="Etapa"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as etapas</SelectItem>{Object.entries(appStatus).filter(([value]) => value !== 'hired').map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
     </div>
     <div className="lineup">
       {filtered.length > 0 && <table className="sheet-table plain">
@@ -1125,7 +1204,7 @@ function HrCandidatesPage({ job, jobs, reloadKey, onSelectJob, onBack, onUpdate,
           <td className="lead-cell"><div className="person"><span className="initials">{initials(candidate.name)}</span><span><strong>{candidate.name}</strong><small>{candidate.email}</small></span></div></td>
           <td data-label="Inscrição" className="tabular">{formatDate(candidate.submittedAt)}</td>
           <td><Chip tone={appTone[candidate.status]}>{appStatus[candidate.status]}</Chip>{candidate.status === 'interview' && candidate.interviewAt && <small>Entrevista em {formatDateTime(candidate.interviewAt)}</small>}</td>
-          <td className="actions-cell"><CandidateMenu candidate={candidate} onUpdate={update} onReject={setRejecting} onResume={setViewing} onSchedule={setScheduling} onDocuments={setDocumentsOf} /></td>
+          <td className="actions-cell"><CandidateMenu candidate={candidate} hireBlock={hireBlock(candidate, types, documents)} onUpdate={update} onReject={setRejecting} onHire={setHiring} onResume={setViewing} onSchedule={setScheduling} onDocuments={setDocumentsOf} /></td>
         </tr>)}</tbody>
       </table>}
       {candidates !== null && filtered.length === 0 && (candidates.length === 0
@@ -1135,13 +1214,14 @@ function HrCandidatesPage({ job, jobs, reloadKey, onSelectJob, onBack, onUpdate,
       {candidates === null && !loadError && <p className="empty muted">Carregando inscritos…</p>}
     </div>
     {viewing && <ResumeDialog candidate={viewing} onClose={() => setViewing(null)} />}
-    {documentsOf && <CandidateDocumentsDialog candidate={documentsOf} reloadKey={reloadKey} onDownload={onDownload} onClose={() => setDocumentsOf(null)} />}
+    {documentsOf && <CandidateDocumentsDialog candidate={documentsOf} reloadKey={reloadKey} onDownload={onDownload} onReview={onReview} onClose={() => setDocumentsOf(null)} />}
     {scheduling && <InterviewDialog candidate={scheduling} onClose={() => setScheduling(null)} onSave={async (dateTime) => { const problem = await onSchedule(scheduling.applicationId, dateTime); if (!problem) void load(); return problem; }} />}
+    {hiring && <ConfirmDialog title="Contratar candidato?" text={`${hiring.name} passa a constar em Funcionários e sai da lista de candidatos desta vaga.`} confirm="Contratar" busyLabel="Contratando…" destructive={false} onCancel={() => setHiring(null)} onConfirm={async () => { const hired = hiring; if (await onHire(hired.applicationId)) setCandidates((items) => items && items.filter((item) => item.applicationId !== hired.applicationId)); setHiring(null); }} />}
     {rejecting && <ConfirmDialog title="Não selecionar candidato?" text={`${rejecting.name} verá a candidatura como “Não selecionado” nesta vaga.`} confirm="Não selecionar" busyLabel="Salvando…" onCancel={() => setRejecting(null)} onConfirm={async () => { await update(rejecting.applicationId, 'rejected'); setRejecting(null); }} />}
   </section>;
 }
 
-function CandidateMenu({ candidate, onUpdate, onReject, onResume, onSchedule, onDocuments }: { candidate: Candidate; onUpdate: (id: string, status: ApplicationStatus) => void; onReject: (candidate: Candidate) => void; onResume: (candidate: Candidate) => void; onSchedule: (candidate: Candidate) => void; onDocuments: (candidate: Candidate) => void }) {
+function CandidateMenu({ candidate, hireBlock, onUpdate, onReject, onHire, onResume, onSchedule, onDocuments }: { candidate: Candidate; hireBlock: string | null; onUpdate: (id: string, status: ApplicationStatus) => void; onReject: (candidate: Candidate) => void; onHire: (candidate: Candidate) => void; onResume: (candidate: Candidate) => void; onSchedule: (candidate: Candidate) => void; onDocuments: (candidate: Candidate) => void }) {
   return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Ações para ${candidate.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56">
     <DropdownMenuItem onClick={() => onResume(candidate)}><FileText />Ver currículo</DropdownMenuItem>
     <DropdownMenuItem onClick={() => onDocuments(candidate)}><Inbox />Ver documentos</DropdownMenuItem>
@@ -1149,6 +1229,7 @@ function CandidateMenu({ candidate, onUpdate, onReject, onResume, onSchedule, on
     <DropdownMenuItem disabled={candidate.status === 'reviewing'} onClick={() => onUpdate(candidate.applicationId, 'reviewing')}><ClipboardList />Mover para análise</DropdownMenuItem>
     <DropdownMenuItem onClick={() => onSchedule(candidate)}><CalendarDays />{candidate.status === 'interview' ? 'Reagendar entrevista' : 'Chamar para entrevista'}</DropdownMenuItem>
     <DropdownMenuItem disabled={candidate.status === 'approved'} onClick={() => onUpdate(candidate.applicationId, 'approved')}><Check />Aprovar candidato</DropdownMenuItem>
+    <DropdownMenuItem className="has-hint" disabled={hireBlock !== null} onClick={() => onHire(candidate)}><UserCheck /><span><span className="hint-title">Contratar candidato</span>{hireBlock && <small>{hireBlock}</small>}</span></DropdownMenuItem>
     <DropdownMenuSeparator />
     <DropdownMenuItem disabled={candidate.status === 'rejected'} variant="destructive" onClick={() => onReject(candidate)}><Ban />Não selecionar candidato</DropdownMenuItem>
   </DropdownMenuContent></DropdownMenu>;
@@ -1183,10 +1264,10 @@ function InterviewDialog({ candidate, onClose, onSave }: { candidate: Candidate;
 }
 
 /** O RH abre um candidato da vaga e vê o mesmo quadro de documentos que o candidato vê. */
-function CandidateDocumentsDialog({ candidate, reloadKey, onDownload, onClose }: { candidate: Candidate; reloadKey: number; onDownload: (doc: CandidateDocument) => Promise<void>; onClose: () => void }) {
+function CandidateDocumentsDialog({ candidate, reloadKey, onDownload, onReview, onClose }: { candidate: Candidate; reloadKey: number; onDownload: (doc: CandidateDocument) => Promise<void>; onReview: ReviewDocument; onClose: () => void }) {
   return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog">
     <DialogHeader><DialogTitle>{candidate.name}</DialogTitle><DialogDescription>{candidate.email} · documentos de contratação</DialogDescription></DialogHeader>
-    <DocumentBoardView applicationId={candidate.applicationId} reloadKey={reloadKey} onDownload={onDownload} />
+    <DocumentBoardView applicationId={candidate.applicationId} reloadKey={reloadKey} onDownload={onDownload} onReview={onReview} />
     <DialogFooter><Button variant="outline" onClick={onClose}>Fechar</Button></DialogFooter>
   </DialogContent></Dialog>;
 }
@@ -1230,6 +1311,142 @@ function ResumeDialog({ candidate, onClose }: { candidate: Candidate; onClose: (
           : <p className="repeat-empty">Nenhum PDF anexado.</p>}
       </section>
     </div>}
+    <DialogFooter><Button variant="outline" onClick={onClose}>Fechar</Button></DialogFooter>
+  </DialogContent></Dialog>;
+}
+
+/* ---------- Agenda e funcionários (RH) ---------- */
+type AgendaFilter = 'all' | InterviewPresence;
+const agendaFilters: [AgendaFilter, string][] = [['all', 'Todos'], ['confirmado', 'Confirmados'], ['pendente', 'Pendentes']];
+
+/** AAAA-MM-DD do dia de um instante no horário de Brasília: liga a entrevista ao dia do calendário. */
+const brasiliaDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+const brasiliaTime = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', timeStyle: 'short' });
+const longDay = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+/** Mesma chave para uma célula do calendário, que é uma data do fuso do navegador. */
+const cellDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const dateOfDay = (key: string) => { const [year, month, day] = key.split('-').map(Number); return new Date(year, month - 1, day); };
+
+/** Calendário de entrevistas: os dias com entrevista ficam marcados e o dia escolhido lista os candidatos, com a presença. */
+function HrAgendaPage({ reloadKey }: { reloadKey: number }) {
+  const [filter, setFilter] = useState<AgendaFilter>('all');
+  const [items, setItems] = useState<Candidate[] | null>(null); const [loadError, setLoadError] = useState<string | null>(null);
+  // Dia e mês escolhidos pela pessoa; sem escolha, abre no próximo dia com entrevista.
+  const [picked, setPicked] = useState<string | null>(null); const [month, setMonth] = useState<Date | undefined>();
+  // Sobe a cada "Tentar novamente".
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let current = true;
+    portalService.getAgenda(filter === 'all' ? undefined : filter)
+      .then((next) => { if (current) { setItems(next); setLoadError(null); } })
+      .catch((error) => { if (current) setLoadError(messageOf(error, 'Não foi possível carregar a agenda.')); });
+    return () => { current = false; };
+  }, [filter, reloadKey, attempt]);
+  const choose = (next: AgendaFilter) => { setFilter(next); setItems(null); setLoadError(null); };
+  const retry = () => { setLoadError(null); setAttempt((current) => current + 1); };
+  // Entrevistas por dia e o que marca o dia: pendente se alguma presença ainda não foi confirmada.
+  const { byDay, dayState } = useMemo(() => {
+    const byDay = new Map<string, Candidate[]>(); const dayState = new Map<string, InterviewPresence>();
+    for (const item of items ?? []) {
+      if (!item.interviewAt) continue;
+      const key = brasiliaDay.format(new Date(item.interviewAt));
+      byDay.set(key, [...(byDay.get(key) ?? []), item]);
+      if (item.presence !== 'confirmado') dayState.set(key, 'pendente'); else if (!dayState.has(key)) dayState.set(key, 'confirmado');
+    }
+    return { byDay, dayState };
+  }, [items]);
+  const days = [...byDay.keys()].sort(); const today = nowInBrasilia().slice(0, 10);
+  const day = picked ?? days.find((key) => key >= today) ?? days[days.length - 1] ?? today;
+  const dayItems = byDay.get(day) ?? [];
+  return <section className="hr-page">
+    <div className="page-head"><div><h1 className="display">Agenda</h1><p>Entrevistas marcadas, no horário de Brasília. Escolha um dia para ver os candidatos.</p></div></div>
+    <div className="toolbar">
+      <div className="segmented" role="group" aria-label="Filtrar por presença">{agendaFilters.map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => choose(value)}>{label}</button>)}</div>
+    </div>
+    {items && items.length > 0
+      ? <div className="agenda">
+          <div className="lineup"><Calendar className="agenda-cal" mode="single" required locale={ptBR} showOutsideDays={false} selected={dateOfDay(day)} onSelect={(next) => setPicked(cellDay(next))} month={month ?? dateOfDay(day)} onMonthChange={setMonth} modifiers={{ pending: (date) => dayState.get(cellDay(date)) === 'pendente', confirmed: (date) => dayState.get(cellDay(date)) === 'confirmado' }} modifiersClassNames={{ pending: 'event-pending', confirmed: 'event-confirmed' }} /></div>
+          <section className="lineup agenda-day" aria-label="Entrevistas do dia">
+            <h2 className="doc-subhead">{longDay.format(dateOfDay(day)).replace(/^./, (letter) => letter.toUpperCase())} <span>{dayItems.length}</span></h2>
+            {dayItems.length > 0
+              ? dayItems.map((item) => <div className="agenda-event" key={item.applicationId}>
+                  <time className="tabular">{brasiliaTime.format(new Date(item.interviewAt ?? ''))}</time>
+                  <div className="person"><span className="initials">{initials(item.name)}</span><span><strong>{item.name}</strong><small>{item.jobTitle}</small></span></div>
+                  {item.presence && <Chip tone={presenceTone[item.presence]}>{presenceStatus[item.presence]}</Chip>}
+                </div>)
+              : <p className="doc-none">Nenhuma entrevista neste dia.</p>}
+          </section>
+        </div>
+      : <div className="lineup">
+          {items && (filter === 'all'
+            ? <Empty title="Nenhuma entrevista marcada" text="Quando um candidato for chamado para entrevista, ela aparece aqui." />
+            : <Empty title="Nenhuma entrevista neste filtro" text="Troque o filtro para ver as outras entrevistas." />)}
+          {!items && loadError && <Empty title="Não foi possível carregar a agenda" text={loadError} action={<Button variant="outline" onClick={retry}>Tentar novamente</Button>} />}
+          {!items && !loadError && <p className="empty muted">Carregando agenda…</p>}
+        </div>}
+  </section>;
+}
+
+/** Candidatos contratados. Inativar não apaga: o registro continua na lista, só troca o status. */
+function HrEmployeesPage({ onNotice, onDownload }: { onNotice: (notice: Notice) => void; onDownload: (doc: CandidateDocument) => Promise<void> }) {
+  const [employees, setEmployees] = useState<Employee[] | null>(null); const [loadError, setLoadError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Employee | null>(null);
+  const [deactivating, setDeactivating] = useState<Employee | null>(null);
+  const load = () => portalService.getEmployees().then((items) => { setEmployees(items); setLoadError(null); }).catch((error) => setLoadError(messageOf(error, 'Não foi possível carregar os funcionários.')));
+  useEffect(() => { void load(); }, []);
+  /** Troca só o funcionário inativado na lista, sem recarregá-la. */
+  const deactivate = async (employee: Employee) => {
+    try {
+      const updated = await portalService.deactivateEmployee(employee.id);
+      setEmployees((items) => items && items.map((item) => item.id === updated.id ? updated : item));
+      onNotice({ tone: 'ok', text: `O cadastro de ${employee.candidateName} foi inativado.` });
+    } catch (error) { onNotice({ tone: 'error', text: messageOf(error, 'Não foi possível inativar o funcionário. Tente novamente.') }); }
+    setDeactivating(null);
+  };
+  return <section className="hr-page">
+    <div className="page-head"><div><h1 className="display">Funcionários</h1><p>Candidatos contratados, com os dados da contratação e os documentos.</p></div></div>
+    <div className="lineup">
+      {employees && employees.length > 0 && <table className="sheet-table">
+        <thead><tr><th>Funcionário</th><th>Vaga</th><th>Contratação</th><th>Status</th><th><span className="sr-only">Ações</span></th></tr></thead>
+        <tbody>{employees.map((employee) => <tr key={employee.id}>
+          <td><button type="button" className="row-link" onClick={() => setViewing(employee)}><strong>{employee.candidateName}</strong><small>{employee.candidateEmail}</small><small className="mobile-meta">{employee.jobTitle} · Contratação em {employee.hiredAt}</small></button></td>
+          <td data-label="Vaga">{employee.jobTitle}</td>
+          <td data-label="Contratação" className="tabular">{employee.hiredAt}</td>
+          <td><Chip tone={userTone[employee.status]}>{userStatus[employee.status]}</Chip></td>
+          <td className="actions-cell"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Ações para ${employee.candidateName}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-48">
+            <DropdownMenuItem onClick={() => setViewing(employee)}><Eye />Ver perfil</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" disabled={employee.status === 'inativo'} onClick={() => setDeactivating(employee)}><Ban />Inativar</DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu></td>
+        </tr>)}</tbody>
+      </table>}
+      {employees && employees.length === 0 && <Empty title="Nenhum funcionário ainda" text="As contratações feitas na tela de candidatos aparecem aqui." />}
+      {!employees && loadError && <Empty title="Não foi possível carregar os funcionários" text={loadError} action={<Button variant="outline" onClick={() => { setLoadError(null); void load(); }}>Tentar novamente</Button>} />}
+      {!employees && !loadError && <p className="empty muted">Carregando funcionários…</p>}
+    </div>
+    {viewing && <EmployeeDialog employee={viewing} onDownload={onDownload} onClose={() => setViewing(null)} />}
+    {deactivating && <ConfirmDialog title="Inativar funcionário?" text={`O cadastro de ${deactivating.candidateName} passa a constar como inativo. Nada é apagado: o registro e os documentos continuam na lista.`} confirm="Inativar" busyLabel="Inativando…" onCancel={() => setDeactivating(null)} onConfirm={() => deactivate(deactivating)} />}
+  </section>;
+}
+
+/** Perfil do funcionário: dados da contratação e documentos com selo de status e download. */
+function EmployeeDialog({ employee, onDownload, onClose }: { employee: Employee; onDownload: (doc: CandidateDocument) => Promise<void>; onClose: () => void }) {
+  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { portalService.getEmployee(employee.id).then(setProfile).catch((problem) => setError(messageOf(problem, 'Não foi possível carregar o perfil.'))); }, [employee.id]);
+  const data = profile?.employee ?? employee;
+  return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog">
+    <DialogHeader><DialogTitle>{data.candidateName}</DialogTitle><DialogDescription>{data.candidateEmail} · dados da contratação</DialogDescription></DialogHeader>
+    <div className="resume-view">
+      <section><h3>Contratação</h3><dl className="resume-facts"><dt>Vaga</dt><dd>{data.jobTitle}</dd><dt>Data</dt><dd>{data.hiredAt}</dd><dt>Status</dt><dd><Chip tone={userTone[data.status]}>{userStatus[data.status]}</Chip></dd></dl></section>
+      <section><h3>Documentos</h3>
+        {error && <FormError title="Não foi possível abrir os documentos" text={error} />}
+        {!error && !profile && <p className="empty muted">Carregando documentos…</p>}
+        {profile && (profile.documents.length > 0
+          ? <div className="lineup">{profile.documents.map((doc) => <DocumentRow key={doc.id} doc={doc} onDownload={onDownload} />)}</div>
+          : <p className="repeat-empty">Nenhum documento enviado.</p>)}
+      </section>
+    </div>
     <DialogFooter><Button variant="outline" onClick={onClose}>Fechar</Button></DialogFooter>
   </DialogContent></Dialog>;
 }

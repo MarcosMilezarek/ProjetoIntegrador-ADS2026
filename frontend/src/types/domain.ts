@@ -65,6 +65,9 @@ export type CandidateProfile = {
   updatedAt?: string;
 };
 
+/** O candidato confirmou ou não a presença na entrevista marcada. Os valores são os da API. */
+export type InterviewPresence = 'pendente' | 'confirmado';
+
 export type Application = {
   id: string;
   jobId: string;
@@ -75,6 +78,10 @@ export type Application = {
   status: ApplicationStatus;
   /** Data e hora da entrevista marcada pelo RH, em UTC (ISO 8601). Mostrar no horário de Brasília. */
   interviewAt?: string;
+  /** Só existe com entrevista marcada; remarcar volta para `pendente`. */
+  presence?: InterviewPresence;
+  /** Instante em UTC; ausente enquanto a presença está pendente. */
+  presenceConfirmedAt?: string;
   notes?: string;
 };
 
@@ -83,10 +90,15 @@ export type Candidate = {
   name: string;
   email: string;
   applicationId: string;
+  jobTitle: string;
   submittedAt: string;
   status: ApplicationStatus;
   interviewAt?: string;
+  presence?: InterviewPresence;
 };
+
+/** Revisão do RH sobre um documento enviado. Reenviar o mesmo tipo volta para `pendente`. */
+export type DocumentStatus = 'pendente' | 'aprovado' | 'recusado';
 
 /** Arquivo enviado pelo candidato numa candidatura aprovada. Espelha a resposta de /documentos. */
 export type CandidateDocument = {
@@ -102,6 +114,7 @@ export type CandidateDocument = {
   typeCode: string | null;
   /** Extensão do arquivo: `pdf` ou `docx`. */
   format: string;
+  status: DocumentStatus;
   sizeBytes: number;
   sentAt: string;
 };
@@ -138,8 +151,28 @@ export type StaffUser = {
 /** Dados enviados ao criar ou editar um usuário do RH. `password` é opcional na edição (vazio mantém a atual). */
 export type StaffUserInput = Omit<StaffUser, 'id'> & { password?: string };
 
+/** Funcionário: candidato contratado. Inativar não apaga nada, o registro continua na lista. */
+export type Employee = {
+  id: string;
+  applicationId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  jobId: string;
+  jobTitle: string;
+  status: 'ativo' | 'inativo';
+  /** Só a data, `dd/MM/yyyy`. */
+  hiredAt: string;
+};
+
+export type EmployeeProfile = { employee: Employee; documents: CandidateDocument[] };
+
+/** `candidatura` avisa sobre uma candidatura; `nova_vaga`, sobre uma vaga publicada. */
+export type NotificationType = 'candidatura' | 'nova_vaga';
+
 export type NotificationItem = {
   id: string;
+  type: NotificationType;
   title: string;
   description: string;
   read: boolean;
