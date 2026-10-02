@@ -8,6 +8,8 @@ import com.rh.recrutamento.backend.notificacao.entity.Notificacao;
 import com.rh.recrutamento.backend.notificacao.mapper.NotificacaoMapper;
 import com.rh.recrutamento.backend.notificacao.repository.NotificacaoRepository;
 import com.rh.recrutamento.backend.usuario.entity.Usuario;
+import jakarta.annotation.PostConstruct;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +29,36 @@ import java.util.concurrent.ConcurrentHashMap;
  * Notificacoes gravadas no banco e entregues na hora, por SSE, a quem estiver conectado.
  * As conexoes abertas ficam em memoria, por usuario (uma por aba). O destinatario vem
  * sempre do token: ninguem escuta, lista ou marca notificacao de outra pessoa.
+ * <p>
+ * Como a memoria e de cada processo, outro backend ligado ao mesmo banco (por exemplo, o de um
+ * desenvolvedor pelo tunel SSH) nao tem como entregar aqui o que gravou: o {@link #sincronizar()}
+ * varre a tabela e envia as notificacoes novas que esta instancia ainda nao entregou.
  */
 @Service
 @Transactional(readOnly = true)
 public class NotificacaoService {
 
+    private static final int LOTE_DO_SINCRONIZADOR = 200;
+    /** Quanto tempo se lembra de uma notificacao enviada por aqui (cobre a transacao que acabou desfeita). */
+    private static final Duration VALIDADE_DO_REGISTRO = Duration.ofMinutes(5);
+
     private final NotificacaoRepository notificacaoRepository;
     private final NotificacaoMapper notificacaoMapper;
     private final Map<Long, Set<SseEmitter>> conexoes = new ConcurrentHashMap<>();
+    /** Notificacoes criadas por esta instancia, que ja saem pelo envio direto depois do commit. */
+    private final Map<Long, Instant> criadasAqui = new ConcurrentHashMap<>();
+    /** Tudo ate este id ja foi visto pelo sincronizador; so o que vem depois precisa ser buscado. */
+    private long ultimoIdVisto;
 
     public NotificacaoService(NotificacaoRepository notificacaoRepository, NotificacaoMapper notificacaoMapper) {
         this.notificacaoRepository = notificacaoRepository;
         this.notificacaoMapper = notificacaoMapper;
+    }
+
+    /** Parte do maior id existente: o que ja estava gravado antes de subir chega pela listagem, nao pelo fluxo. */
+    @PostConstruct
+    void iniciarSincronizador() {
+        ultimoIdVisto = notificacaoRepository.maiorId();
     }
 
     /**
@@ -52,6 +72,8 @@ public class NotificacaoService {
             new Notificacao(destinatario, tipo, referenciaId, titulo, mensagem));
         NotificacaoResponse resposta = notificacaoMapper.toResponse(notificacao);
         Long destinatarioId = destinatario.getId();
+        // registrado antes do commit: o sincronizador so enxerga a linha depois dele e ja a encontra marcada
+        criadasAqui.put(notificacao.getId(), Instant.now());
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -118,6 +140,27 @@ public class NotificacaoService {
                 doUsuario.remove(emissor);
             }
         }));
+    }
+
+    /**
+     * Entrega aqui as notificacoes que outra instancia do backend gravou no mesmo banco. As que esta
+     * instancia criou ja foram (ou vao ser) enviadas pelo caminho direto e sao puladas, para nao chegar em dobro.
+     * Roda a cada segundo: uma consulta por chave primaria, barata mesmo sem ninguem conectado.
+     */
+    @Scheduled(fixedDelay = 1_000)
+    public synchronized void sincronizar() {
+        List<Notificacao> novas;
+        do {
+            novas = notificacaoRepository.buscarDepoisDe(ultimoIdVisto, PageRequest.of(0, LOTE_DO_SINCRONIZADOR));
+            for (Notificacao notificacao : novas) {
+                ultimoIdVisto = notificacao.getId();
+                if (criadasAqui.remove(notificacao.getId()) == null) {
+                    enviar(notificacao.getUsuario().getId(), notificacaoMapper.toResponse(notificacao));
+                }
+            }
+        } while (novas.size() == LOTE_DO_SINCRONIZADOR);
+        Instant limite = Instant.now().minus(VALIDADE_DO_REGISTRO);
+        criadasAqui.values().removeIf(criadaEm -> criadaEm.isBefore(limite));
     }
 
     private void enviar(Long usuarioId, NotificacaoResponse notificacao) {
