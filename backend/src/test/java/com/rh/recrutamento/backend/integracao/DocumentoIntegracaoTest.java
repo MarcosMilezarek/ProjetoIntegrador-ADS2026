@@ -44,7 +44,7 @@ class DocumentoIntegracaoTest {
         Usuario paulo = usuario("paulo@documento.test", Usuario.Perfil.rh);
         Usuario ana = usuario("ana@documento.test", Usuario.Perfil.candidato);
         Usuario bruno = usuario("bruno@documento.test", Usuario.Perfil.candidato);
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
         Candidatura daAna = candidatura(ana, vaga, Candidatura.Status.aprovado);
         Candidatura doBruno = candidatura(bruno, vaga, Candidatura.Status.entrevista);
@@ -107,7 +107,7 @@ class DocumentoIntegracaoTest {
         Usuario rita = usuario("rita@quadro.test", Usuario.Perfil.rh);
         Usuario paulo = usuario("paulo@quadro.test", Usuario.Perfil.rh);
         Usuario ana = usuario("ana@quadro.test", Usuario.Perfil.candidato);
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
         Candidatura daAna = candidatura(ana, vaga, Candidatura.Status.aprovado);
         String envio = "/candidaturas/" + daAna.getId() + "/documentos";

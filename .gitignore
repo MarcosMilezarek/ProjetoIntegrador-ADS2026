@@ -1,0 +1,10 @@
+# Contexto do Claude especifico da maquina (caminho do vault, hook e importacao)
+/context.md
+/CLAUDE.local.md
+/.claude/hooks/
+/.claude/settings.local.json
+# Config de MCP com token do Obsidian (nunca versionar)
+/.mcp.json
+# Arquivos enviados em teste (dados pessoais, LGPD) e credencial de conexao da IDE
+/backend/uploads/
+/.idea/dataSources.xml

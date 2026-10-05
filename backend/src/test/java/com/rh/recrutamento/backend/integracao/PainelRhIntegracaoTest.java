@@ -46,7 +46,7 @@ class PainelRhIntegracaoTest {
         Usuario paulo = usuario("paulo@painel.test", Usuario.Perfil.rh);
         Usuario ana = usuario("ana@painel.test", Usuario.Perfil.candidato);
         Usuario bruno = usuario("bruno@painel.test", Usuario.Perfil.candidato);
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
 
         // sem curriculo nao se candidata (UC04)

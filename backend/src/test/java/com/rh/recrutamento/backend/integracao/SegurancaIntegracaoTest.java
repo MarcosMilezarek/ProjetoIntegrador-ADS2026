@@ -102,7 +102,7 @@ class SegurancaIntegracaoTest {
     void rhNaoAlteraVagaDeOutroRh() throws Exception {
         Usuario rita = novoUsuario("rita@seguranca.test", Usuario.Perfil.rh);
         String paulo = login(novoUsuario("paulo@seguranca.test", Usuario.Perfil.rh));
-        Vaga vagaDaRita = vagaRepository.save(new Vaga(rita, "Vaga da Rita", "Descricao", null, null,
+        Vaga vagaDaRita = vagaRepository.save(new Vaga(rita, "Vaga da Rita", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
         String corpo = """
             {"titulo":"Tomada","descricao":"x","modalidade":"remoto","tipoContrato":"clt","status":"encerrada"}

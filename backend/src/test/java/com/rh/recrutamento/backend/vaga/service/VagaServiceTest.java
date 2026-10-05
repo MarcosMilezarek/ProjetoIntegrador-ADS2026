@@ -61,7 +61,7 @@ class VagaServiceTest {
     @Test
     void criarDeveUsarRascunhoQuandoStatusNaoInformado() {
         VagaRequest request = new VagaRequest(
-            "Desenvolvedor Backend", "Descrição da vaga", "Java, Spring", "Remoto",
+            "Desenvolvedor Backend", "Descrição da vaga", "Java, Spring", null, null, "Remoto",
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(rh(1L)));
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -79,7 +79,7 @@ class VagaServiceTest {
     @Test
     void criarDeveRespeitarStatusInformado() {
         VagaRequest request = new VagaRequest(
-            "Desenvolvedor Backend", "Descrição", null, null,
+            "Desenvolvedor Backend", "Descrição", null, null, null, null,
             Vaga.Modalidade.hibrido, Vaga.TipoContrato.pj, Vaga.Status.aberta, null);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(rh(1L)));
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -92,7 +92,7 @@ class VagaServiceTest {
         Usuario candidato = new Usuario("Marina", "marina@email.com", "hash", Usuario.Perfil.candidato, Usuario.Status.ativo);
         ReflectionTestUtils.setField(candidato, "id", 2L);
         VagaRequest request = new VagaRequest(
-            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+            "Vaga", "Descrição", null, null, null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(2L)).thenReturn(Optional.of(candidato));
 
         // token emitido quando ainda era RH: o banco e quem decide
@@ -104,7 +104,7 @@ class VagaServiceTest {
     @Test
     void criarDeveRecusarQuandoRhNaoExiste() {
         VagaRequest request = new VagaRequest(
-            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+            "Vaga", "Descrição", null, null, null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> vagaService.criar(request, new UsuarioLogado(99L, Usuario.Perfil.rh)))
@@ -145,7 +145,7 @@ class VagaServiceTest {
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
         VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
-            "Vaga Atualizada", "Nova descrição", "Novo requisito", "São Paulo",
+            "Vaga Atualizada", "Nova descrição", "Novo requisito", null, null, "São Paulo",
             Vaga.Modalidade.presencial, Vaga.TipoContrato.estagio, Vaga.Status.aberta, null), RH_1);
 
         assertThat(resposta.titulo()).isEqualTo("Vaga Atualizada");
@@ -160,7 +160,7 @@ class VagaServiceTest {
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
         VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
-            "Vaga A", "Descrição", null, null,
+            "Vaga A", "Descrição", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.encerrada, null), RH_1);
 
         assertThat(resposta.status()).isEqualTo("encerrada");
@@ -171,7 +171,7 @@ class VagaServiceTest {
         when(vagaRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> vagaService.atualizar(99L, new VagaUpdateRequest(
-            "Vaga", "Descrição", null, null,
+            "Vaga", "Descrição", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), RH_1))
             .isInstanceOf(RecursoNaoEncontradoException.class);
         verify(vagaRepository, never()).save(any());
@@ -185,7 +185,7 @@ class VagaServiceTest {
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
         VagaRequest request = new VagaRequest(
-            "Vaga", "Descrição", null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
+            "Vaga", "Descrição", null, null, null, null, Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null);
 
         assertThat(vagaService.criar(request, ADMINISTRADOR).rhId()).isEqualTo(9L);
     }
@@ -227,7 +227,7 @@ class VagaServiceTest {
         when(vagaRepository.findById(1L)).thenReturn(Optional.of(vagaExistente(1L, "Vaga A")));
 
         assertThatThrownBy(() -> vagaService.atualizar(1L, new VagaUpdateRequest(
-            "Vaga", "Descrição", null, null,
+            "Vaga", "Descrição", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), RH_2))
             .isInstanceOf(AcessoNegadoException.class);
         verify(vagaRepository, never()).save(any());
@@ -239,7 +239,7 @@ class VagaServiceTest {
         when(vagaRepository.save(any(Vaga.class))).thenAnswer(inv -> inv.getArgument(0));
 
         VagaResponse resposta = vagaService.atualizar(1L, new VagaUpdateRequest(
-            "Vaga B", "Descrição", null, null,
+            "Vaga B", "Descrição", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null), ADMINISTRADOR);
 
         assertThat(resposta.titulo()).isEqualTo("Vaga B");
@@ -252,7 +252,7 @@ class VagaServiceTest {
     }
 
     private Vaga vagaExistente(Long id, String titulo) {
-        Vaga vaga = new Vaga(rh(1L), titulo, "Descrição", null, null,
+        Vaga vaga = new Vaga(rh(1L), titulo, "Descrição", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.rascunho, null);
         ReflectionTestUtils.setField(vaga, "id", id);
         return vaga;

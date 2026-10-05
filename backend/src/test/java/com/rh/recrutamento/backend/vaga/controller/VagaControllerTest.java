@@ -48,12 +48,12 @@ class VagaControllerTest {
     private VagaService vagaService;
 
     private final VagaResponse vagaDesenvolvedor = new VagaResponse(
-        1L, 1L, "Desenvolvedor Backend", "Descrição", "Java", "Remoto",
+        1L, 1L, "Desenvolvedor Backend", "Descrição", "Java", null, null, "Remoto",
         "remoto", "clt", "rascunho", null, LocalDateTime.now(), LocalDateTime.now());
 
     private String novaVaga() {
         return objectMapper.writeValueAsString(new VagaRequest(
-            "Desenvolvedor Backend", "Descrição", "Java", "Remoto",
+            "Desenvolvedor Backend", "Descrição", "Java", null, null, "Remoto",
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, null, null));
     }
 
@@ -137,14 +137,14 @@ class VagaControllerTest {
     @Test
     void putDeveAtualizarVaga() throws Exception {
         VagaResponse encerrada = new VagaResponse(
-            1L, 1L, "Desenvolvedor Backend", "Descrição", "Java", "Remoto",
+            1L, 1L, "Desenvolvedor Backend", "Descrição", "Java", null, null, "Remoto",
             "remoto", "clt", "encerrada", null, LocalDateTime.now(), LocalDateTime.now());
         when(vagaService.atualizar(eq(1L), any(VagaUpdateRequest.class), eq(RH))).thenReturn(encerrada);
 
         mockMvc.perform(put("/vagas/1").with(comoRh(1))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new VagaUpdateRequest(
-                    "Desenvolvedor Backend", "Descrição", "Java", "Remoto",
+                    "Desenvolvedor Backend", "Descrição", "Java", null, null, "Remoto",
                     Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.encerrada, null))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("encerrada"));
@@ -158,7 +158,7 @@ class VagaControllerTest {
         mockMvc.perform(put("/vagas/7").with(comoRh(1))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new VagaUpdateRequest(
-                    "Vaga", "Descrição", null, null,
+                    "Vaga", "Descrição", null, null, null, null,
                     Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null))))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.mensagem").value("Esta vaga está sob responsabilidade de outro RH."));
@@ -172,7 +172,7 @@ class VagaControllerTest {
         mockMvc.perform(put("/vagas/99").with(comoRh(1))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new VagaUpdateRequest(
-                    "Vaga", "Descrição", null, null,
+                    "Vaga", "Descrição", null, null, null, null,
                     Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null))))
             .andExpect(status().isNotFound());
     }
