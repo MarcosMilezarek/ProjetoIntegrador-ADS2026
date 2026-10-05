@@ -1203,7 +1203,14 @@ function HrCandidatesPage({ job, jobs, documents, reloadKey, onSelectJob, onBack
   // Tipos de documento exigidos: sem eles (ainda ou por falha) o Contratar fica desabilitado.
   const [types, setTypes] = useState<DocumentType[] | null>(null);
   useEffect(() => { portalService.getDocumentTypes().then(setTypes).catch(() => undefined); }, []);
-  const load = () => portalService.getCandidates(job.id).then((items) => { setCandidates(items); setLoadError(null); }).catch((error) => setLoadError(messageOf(error, 'Não foi possível carregar os inscritos.')));
+  // Cada carregamento leva um número: só o mais recente grava, para uma resposta atrasada (outra vaga, outra notificação) não sobrescrever a atual.
+  const latestLoad = useRef(0);
+  const load = () => {
+    const mine = ++latestLoad.current;
+    return portalService.getCandidates(job.id)
+      .then((items) => { if (mine === latestLoad.current) { setCandidates(items); setLoadError(null); } })
+      .catch((error) => { if (mine === latestLoad.current) setLoadError(messageOf(error, 'Não foi possível carregar os inscritos.')); });
+  };
   useEffect(() => { setCandidates(null); setLoadError(null); void load(); }, [job.id]);
   useEffect(() => { if (reloadKey > 0) void load(); }, [reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const retry = () => { setLoadError(null); void load(); };
