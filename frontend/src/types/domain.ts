@@ -85,6 +85,10 @@ export type Application = {
   notes?: string;
 };
 
+export type AnaliseStatus = 'PENDENTE' | 'CONCLUIDA' | 'FALHA';
+/** Triagem do currículo por IA, só na lista de inscritos do RH. Recomendação, não decisão. `aderencia` (0 a 100) só vem com CONCLUIDA. */
+export type AnaliseCandidatura = { status: AnaliseStatus; aderencia: number | null; pontosPositivos: string[]; pontosNegativos: string[] };
+
 export type Candidate = {
   id: string;
   name: string;
@@ -95,6 +99,8 @@ export type Candidate = {
   status: ApplicationStatus;
   interviewAt?: string;
   presence?: InterviewPresence;
+  /** Nulo em candidatura anterior à triagem por IA. */
+  analise: AnaliseCandidatura | null;
 };
 
 /** Revisão do RH sobre um documento enviado. Reenviar o mesmo tipo volta para `pendente`. */

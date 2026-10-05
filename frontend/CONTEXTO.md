@@ -1,5 +1,9 @@
 # Contexto do Frontend
 
+> **Retrato histórico de 2026-10-02.** A fonte de referência do contexto deste projeto passou a ser o vault do
+> Obsidian do mantenedor (pasta `Projeto-Integrador`), e este arquivo não é mais atualizado: pode estar defasado.
+> Em divergência, vale o código.
+
 > Histórico do que já foi desenvolvido e em que etapa o frontend está. Atualize este arquivo
 > sempre que uma feature nova for concluída, para quem retomar o trabalho (humano ou IA) não
 > precisar reconstruir o contexto do zero. Última atualização: 2026-10-02.

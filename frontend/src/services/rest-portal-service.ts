@@ -1,6 +1,6 @@
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
-import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, JobStatus, NewJobInput, NotificationEvent, NotificationItem, NotificationType, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { AnaliseCandidatura, Application,ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, JobStatus, NewJobInput, NotificationEvent, NotificationItem, NotificationType, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
 import type { Perfil, StatusUsuario } from '@/types/auth';
 
 /** Formato bruto retornado por /vagas (VagaResponse do backend). */
@@ -58,9 +58,11 @@ interface CandidaturaResponseDTO {
   presenca: InterviewPresence | null;
   /** Instante em UTC; nulo enquanto a presença está pendente. */
   presencaConfirmadaEm: string | null;
+  /** Só em GET /vagas/{id}/candidaturas; ausente nas demais rotas. */
+  analise?: AnaliseCandidatura | null;
 }
 
-/** Formato bruto de /documentos (DocumentoResponse do backend). */
+/** Formato bruto de /documentos(DocumentoResponse do backend). */
 interface DocumentoResponseDTO {
   id: number;
   candidaturaId: number;
@@ -182,6 +184,7 @@ function candidateFromResponse(item: CandidaturaResponseDTO): Candidate {
     status: statusFromApi[item.status] ?? 'applied',
     interviewAt: item.entrevistaEm ?? undefined,
     presence: item.presenca ?? undefined,
+    analise: item.analise ?? null,
   };
 }
 
