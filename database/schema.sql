@@ -257,3 +257,22 @@ CREATE TABLE funcionario (
         FOREIGN KEY (candidatura_id) REFERENCES candidatura (id)
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB;
+
+-- ---------------------------------------------------------------
+-- analise_candidatura (triagem por IA: aderencia, pontos positivos e negativos; V7 e V8)
+-- ---------------------------------------------------------------
+CREATE TABLE analise_candidatura (
+    id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    candidatura_id   BIGINT UNSIGNED                              NOT NULL,
+    status           ENUM('PENDENTE', 'CONCLUIDA', 'FALHA')       NOT NULL DEFAULT 'PENDENTE',
+    aderencia        TINYINT UNSIGNED                             NULL,  -- porcentagem 0 a 100; so com CONCLUIDA
+    pontos_positivos TEXT                                         NULL,  -- lista JSON de textos
+    pontos_negativos TEXT                                         NULL,  -- lista JSON de textos
+    modelo           VARCHAR(150)                                 NULL,
+    data_analise     DATETIME                                     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_analise_candidatura (candidatura_id),
+    CONSTRAINT fk_analise_candidatura_candidatura
+        FOREIGN KEY (candidatura_id) REFERENCES candidatura (id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_analise_aderencia CHECK (aderencia IS NULL OR aderencia BETWEEN 0 AND 100)
+) ENGINE = InnoDB;
