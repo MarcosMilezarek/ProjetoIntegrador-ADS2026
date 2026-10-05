@@ -5,6 +5,7 @@ import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
+import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaRhResponse;
 import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import com.rh.recrutamento.backend.candidatura.entity.HistoricoStatus;
 import com.rh.recrutamento.backend.candidatura.exception.CandidaturaNaoPermitidaException;
@@ -12,6 +13,7 @@ import com.rh.recrutamento.backend.candidatura.repository.CandidaturaRepository;
 import com.rh.recrutamento.backend.candidatura.repository.HistoricoStatusRepository;
 import com.rh.recrutamento.backend.comum.exception.AcessoNegadoException;
 import com.rh.recrutamento.backend.curriculo.repository.CurriculoRepository;
+import com.rh.recrutamento.backend.analise.service.AnaliseService;
 import com.rh.recrutamento.backend.documento.service.DocumentoService;
 import com.rh.recrutamento.backend.funcionario.mapper.FuncionarioMapperImpl;
 import com.rh.recrutamento.backend.funcionario.repository.FuncionarioRepository;
@@ -74,13 +76,16 @@ class CandidaturaServiceTest {
     @Mock
     private DocumentoService documentoService;
 
+    @Mock
+    private AnaliseService analiseService;
+
     private CandidaturaService candidaturaService;
 
     @BeforeEach
     void montarService() {
         candidaturaService = new CandidaturaService(candidaturaRepository, historicoRepository, vagaRepository,
             usuarioRepository, curriculoRepository, new CandidaturaMapperImpl(), notificacaoService,
-            funcionarioRepository, new FuncionarioMapperImpl(), documentoService);
+            funcionarioRepository, new FuncionarioMapperImpl(), documentoService, analiseService);
     }
 
     @Test
@@ -156,7 +161,7 @@ class CandidaturaServiceTest {
             .thenReturn(List.of(candidatura(20L, vaga, Candidatura.Status.inscrito)));
 
         assertThat(candidaturaService.listarPorVaga(10L, RITA))
-            .extracting(CandidaturaResponse::candidatoNome).containsExactly("Ana");
+            .extracting(CandidaturaRhResponse::candidatoNome).containsExactly("Ana");
         assertThat(candidaturaService.listarPorVaga(10L, ADMINISTRADOR)).hasSize(1);
     }
 

@@ -1,10 +1,13 @@
 package com.rh.recrutamento.backend.candidatura.service;
 
+import com.rh.recrutamento.backend.analise.dto.response.AnaliseResponse;
+import com.rh.recrutamento.backend.analise.service.AnaliseService;
 import com.rh.recrutamento.backend.auth.dto.UsuarioLogado;
 import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
+import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaRhResponse;
 import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import com.rh.recrutamento.backend.candidatura.entity.HistoricoStatus;
 import com.rh.recrutamento.backend.candidatura.exception.CandidaturaNaoPermitidaException;
@@ -30,7 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /** Candidatura (RF07/RF08) e painel do RH: inscritos por vaga e etapa do processo (RF12/RF13). */
 @Service
@@ -51,12 +56,14 @@ public class CandidaturaService {
     private final FuncionarioRepository funcionarioRepository;
     private final FuncionarioMapper funcionarioMapper;
     private final DocumentoService documentoService;
+    private final AnaliseService analiseService;
 
     public CandidaturaService(CandidaturaRepository candidaturaRepository, HistoricoStatusRepository historicoRepository,
                               VagaRepository vagaRepository, UsuarioRepository usuarioRepository,
                               CurriculoRepository curriculoRepository, CandidaturaMapper candidaturaMapper,
                               NotificacaoService notificacaoService, FuncionarioRepository funcionarioRepository,
-                              FuncionarioMapper funcionarioMapper, DocumentoService documentoService) {
+                              FuncionarioMapper funcionarioMapper, DocumentoService documentoService,
+                              AnaliseService analiseService) {
         this.candidaturaRepository = candidaturaRepository;
         this.historicoRepository = historicoRepository;
         this.vagaRepository = vagaRepository;
@@ -67,6 +74,7 @@ public class CandidaturaService {
         this.funcionarioRepository = funcionarioRepository;
         this.funcionarioMapper = funcionarioMapper;
         this.documentoService = documentoService;
+        this.analiseService = analiseService;
     }
 
     @Transactional
@@ -91,6 +99,7 @@ public class CandidaturaService {
             candidatura, null, Candidatura.Status.inscrito, candidato, "Candidatura registrada pelo portal."));
         notificacaoService.notificar(vaga.getRh(), Notificacao.Tipo.candidatura, candidatura.getId(), "Nova candidatura",
             candidato.getNome() + " se candidatou à vaga " + vaga.getTitulo() + ".");
+        analiseService.solicitar(candidatura); // triagem por IA: roda depois do commit e nunca derruba a candidatura
         return candidaturaMapper.toResponse(candidatura);
     }
 
@@ -101,12 +110,22 @@ public class CandidaturaService {
             .toList();
     }
 
-    /** Quem ja foi contratado deixa a lista de candidatos e passa a aparecer em Funcionarios. */
-    public List<CandidaturaResponse> listarPorVaga(Long vagaId, UsuarioLogado logado) {
+    /**
+     * Quem ja foi contratado deixa a lista de candidatos e passa a aparecer em Funcionarios.
+     * E o unico ponto que entrega a triagem por IA, e so ao RH da vaga (ou ao administrador).
+     * Ordem: maior aderencia primeiro; sem aderencia (pendente, falha ou sem analise) por ultimo;
+     * o empate segue a data da candidatura.
+     */
+    public List<CandidaturaRhResponse> listarPorVaga(Long vagaId, UsuarioLogado logado) {
         verificarResponsavel(obterVaga(vagaId), logado);
-        return candidaturaRepository.findByVaga_IdOrderByDataCandidaturaAsc(vagaId).stream()
+        List<Candidatura> candidaturas = candidaturaRepository.findByVaga_IdOrderByDataCandidaturaAsc(vagaId).stream()
             .filter(c -> c.getStatus() != Candidatura.Status.contratado)
-            .map(candidaturaMapper::toResponse)
+            .toList();
+        Map<Long, AnaliseResponse> analises =
+            analiseService.porCandidatura(candidaturas.stream().map(Candidatura::getId).toList());
+        return candidaturas.stream()
+            .map(c -> CandidaturaRhResponse.de(candidaturaMapper.toResponse(c), analises.get(c.getId())))
+            .sorted(Comparator.comparingInt(CandidaturaService::aderenciaParaOrdenar).reversed())
             .toList();
     }
 
@@ -225,6 +244,11 @@ public class CandidaturaService {
                 + "Quando quiser, conheça as outras vagas abertas e candidate-se.";
             default -> "Vaga " + vaga + ": sua candidatura agora está em \"" + novo.getRotulo() + "\".";
         };
+    }
+
+    /** Sem aderencia vale -1, para ficar depois de quem tem 0%. A ordenacao e estavel: o empate segue a data. */
+    private static int aderenciaParaOrdenar(CandidaturaRhResponse c) {
+        return c.analise() == null || c.analise().aderencia() == null ? -1 : c.analise().aderencia();
     }
 
     /** Depois de contratada, a candidatura so sai desse estado inativando o funcionario. */

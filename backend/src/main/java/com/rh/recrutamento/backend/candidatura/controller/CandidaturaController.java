@@ -5,6 +5,7 @@ import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
+import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaRhResponse;
 import com.rh.recrutamento.backend.candidatura.entity.Candidatura;
 import com.rh.recrutamento.backend.candidatura.service.CandidaturaService;
 import com.rh.recrutamento.backend.funcionario.dto.response.FuncionarioResponse;
@@ -37,10 +38,10 @@ public class CandidaturaController {
         return ResponseEntity.ok(candidaturaService.listarMinhas(UsuarioLogado.de(jwt)));
     }
 
-    /** Painel do RH: inscritos de uma vaga. */
+    /** Painel do RH: inscritos de uma vaga, com a triagem por IA. */
     @GetMapping("/vagas/{vagaId}/candidaturas")
-    public ResponseEntity<List<CandidaturaResponse>> listarPorVaga(@PathVariable Long vagaId,
-                                                                   @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<List<CandidaturaRhResponse>> listarPorVaga(@PathVariable Long vagaId,
+                                                                     @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(candidaturaService.listarPorVaga(vagaId, UsuarioLogado.de(jwt)));
     }
 
