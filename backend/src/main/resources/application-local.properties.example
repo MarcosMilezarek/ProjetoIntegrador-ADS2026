@@ -15,3 +15,8 @@ spring.datasource.password=sua_senha
 # Segredo do JWT para rodar localmente (minimo 32 caracteres; gere com: openssl rand -base64 48).
 # Na VPS nao defina aqui: use JWT_SECRET no backend.service (o que estiver neste arquivo sobrescreve a variavel).
 # app.jwt.secret=
+
+# Triagem por IA (OpenRouter): chave e modelo. Preencha so aqui (arquivo nao versionado) ou por variavel
+# de ambiente OPENROUTER_API_KEY e OPENROUTER_MODEL. Deixe comentado se for usar as variaveis.
+# app.openrouter.api-key=
+# app.openrouter.model=

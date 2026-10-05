@@ -6,6 +6,7 @@ import com.rh.recrutamento.backend.candidatura.dto.request.CandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.EntrevistaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.request.StatusCandidaturaRequest;
 import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaResponse;
+import com.rh.recrutamento.backend.candidatura.dto.response.CandidaturaRhResponse;
 import com.rh.recrutamento.backend.candidatura.exception.CandidaturaNaoPermitidaException;
 import com.rh.recrutamento.backend.candidatura.service.CandidaturaService;
 import com.rh.recrutamento.backend.comum.config.CorsConfig;
@@ -89,7 +90,7 @@ class CandidaturaControllerTest {
 
     @Test
     void rhListaInscritosDaVaga() throws Exception {
-        when(candidaturaService.listarPorVaga(10L, RITA)).thenReturn(List.of(inscricao));
+        when(candidaturaService.listarPorVaga(10L, RITA)).thenReturn(List.of(CandidaturaRhResponse.de(inscricao, null)));
 
         mockMvc.perform(get("/vagas/10/candidaturas").with(comoRh(7)))
             .andExpect(status().isOk())
