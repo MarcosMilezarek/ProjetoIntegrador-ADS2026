@@ -1,6 +1,6 @@
 const baseUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
 
-/** Token da sessão. Fica só em memória: recarregar a página volta ao login. */
+/** Token da sessão em uso. O App também o guarda em localStorage (`upteam.sessao`) e o redefine ao restaurar a sessão no F5. */
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
 
