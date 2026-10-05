@@ -21,7 +21,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Extrai a mensagem do ErroResponse do backend ({mensagem, campos}); usa o texto cru quando o corpo não ajuda. */
+/** Extrai a mensagem do ErroResponse do backend ({mensagem, campos}). Sem ele (ex.: página HTML de 502 do nginx), usa um aviso genérico. */
 async function erroDaResposta(response: Response): Promise<ApiError> {
   const texto = await response.text();
   try {
@@ -35,7 +35,7 @@ async function erroDaResposta(response: Response): Promise<ApiError> {
   } catch {
     // corpo não é JSON
   }
-  return new ApiError(texto || `Falha na API (${response.status}).`, response.status);
+  return new ApiError(`O servidor não conseguiu atender agora (código ${response.status}). Tente novamente em instantes.`, response.status);
 }
 
 export async function apiClient<T>(
