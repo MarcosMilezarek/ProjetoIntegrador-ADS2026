@@ -1148,14 +1148,14 @@ function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; o
   return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog">
     <DialogHeader><DialogTitle>{job ? 'Editar vaga' : 'Nova vaga'}</DialogTitle><DialogDescription>{job ? 'As alterações aparecem no portal assim que você salvar.' : 'A vaga é publicada como aberta assim que você salvar.'}</DialogDescription></DialogHeader>
     <form onSubmit={submit} className="dialog-form">
-      <Field label="Título da vaga"><Input required value={form.title} onChange={(event) => update('title', event.target.value)} /></Field>
+      <Field label="Título da vaga" error={campos.titulo}><Input required value={form.title} onChange={(event) => update('title', event.target.value)} /></Field>
       <div className="field-row">
-        <Field label="Cidade"><Input required value={form.city} onChange={(event) => update('city', event.target.value)} /></Field>
-        <Field label="Inscrições até" hint="Opcional"><Input type="date" value={form.closesAt} onChange={(event) => update('closesAt', event.target.value)} /></Field>
+        <Field label="Cidade" error={campos.local}><Input required value={form.city} onChange={(event) => update('city', event.target.value)} /></Field>
+        <Field label="Inscrições até" hint="Opcional" error={campos.prazo}><Input type="date" value={form.closesAt} onChange={(event) => update('closesAt', event.target.value)} /></Field>
         <Field label="Modalidade"><Select value={form.workModel} onValueChange={(value) => update('workModel', value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Presencial">Presencial</SelectItem><SelectItem value="Híbrido">Híbrido</SelectItem><SelectItem value="Remoto">Remoto</SelectItem></SelectContent></Select></Field>
         <Field label="Contrato"><Select value={form.contract} onValueChange={(value) => update('contract', value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CLT">CLT</SelectItem><SelectItem value="Estágio">Estágio</SelectItem><SelectItem value="PJ">PJ</SelectItem><SelectItem value="Temporário">Temporário</SelectItem></SelectContent></Select></Field>
       </div>
-      <Field label="Descrição"><Textarea required value={form.description} onChange={(event) => update('description', event.target.value)} /></Field>
+      <Field label="Descrição" error={campos.descricao}><Textarea required value={form.description} onChange={(event) => update('description', event.target.value)} /></Field>
       <div className="note"><strong>A classificação dos requisitos importa.</strong>Ela influencia a triagem por IA, e os requisitos obrigatórios pesam mais.</div>
       <Field label="Requisitos obrigatórios" hint="Um requisito por linha" error={campos.requisitosObrigatorios}><Textarea value={form.required} onChange={(event) => update('required', event.target.value)} aria-describedby="req-obrigatorios" /><small id="req-obrigatorios">Indispensável para a função, como experiência, formação e competências exigidas.</small></Field>
       <Field label="Requisitos desejáveis" hint="Um requisito por linha" error={campos.requisitosDesejaveis}><Textarea value={form.desirable} onChange={(event) => update('desirable', event.target.value)} aria-describedby="req-desejaveis" /><small id="req-desejaveis">Bom ter, dá para aprender na prática.</small></Field>
