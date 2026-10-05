@@ -323,41 +323,5 @@ export const mockPortalService: PortalService = {
   async subscribeNotifications() { /* sem tempo real no mock */ },
 };
 
-export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API === 'false'
-  ? {
-      ...mockPortalService,
-      getJobs: restPortalService.getJobs,
-      saveJob: restPortalService.saveJob,
-      closeJob: restPortalService.closeJob,
-      getProfile: restPortalService.getProfile,
-      updateProfile: restPortalService.updateProfile,
-      uploadResumeFile: restPortalService.uploadResumeFile,
-      downloadResumeFile: restPortalService.downloadResumeFile,
-      getApplications: restPortalService.getApplications,
-      apply: restPortalService.apply,
-      getCandidates: restPortalService.getCandidates,
-      updateApplicationStatus: restPortalService.updateApplicationStatus,
-      getDocuments: restPortalService.getDocuments,
-      uploadDocument: restPortalService.uploadDocument,
-      downloadDocument: restPortalService.downloadDocument,
-      getDocumentTypes: restPortalService.getDocumentTypes,
-      getDocumentBoard: restPortalService.getDocumentBoard,
-      scheduleInterview: restPortalService.scheduleInterview,
-      confirmPresence: restPortalService.confirmPresence,
-      getAgenda: restPortalService.getAgenda,
-      hire: restPortalService.hire,
-      approveDocument: restPortalService.approveDocument,
-      refuseDocument: restPortalService.refuseDocument,
-      getEmployees: restPortalService.getEmployees,
-      getEmployee: restPortalService.getEmployee,
-      deactivateEmployee: restPortalService.deactivateEmployee,
-      getUsers: restPortalService.getUsers,
-      createUser: restPortalService.createUser,
-      updateUser: restPortalService.updateUser,
-      deleteUser: restPortalService.deleteUser,
-      getNotifications: restPortalService.getNotifications,
-      markNotificationsRead: restPortalService.markNotificationsRead,
-      markNotificationRead: restPortalService.markNotificationRead,
-      subscribeNotifications: restPortalService.subscribeNotifications,
-    }
-  : mockPortalService;
+// O REST implementa a interface inteira: método novo sem versão REST vira erro de tipo, em vez de cair no mock em produção.
+export const portalService: PortalService = import.meta.env.VITE_USE_MOCK_API === 'false' ? restPortalService : mockPortalService;
