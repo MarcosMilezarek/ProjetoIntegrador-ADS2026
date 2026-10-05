@@ -23,7 +23,10 @@ import java.util.Map;
 public class OpenRouterClient {
 
     private static final Duration TEMPO_CONEXAO = Duration.ofSeconds(5);
-    private static final Duration TEMPO_RESPOSTA = Duration.ofSeconds(60);
+    private static final Duration TEMPO_RESPOSTA = Duration.ofSeconds(120); // modelo com raciocinio demora mais
+
+    /** Raciocinio ligado: o modelo configurado (qwen/qwen3.8-27b:free) raciocina antes de responder. A resposta fica em content. */
+    private static final Map<String, Object> REASONING = Map.of("enabled", true);
 
     /** Saida pedida ao modelo. Nem todo modelo a respeita: quem chama valida de novo. */
     private static final Map<String, Object> RESPONSE_FORMAT = Map.of(
@@ -82,7 +85,8 @@ public class OpenRouterClient {
             "messages", List.of(
                 Map.of("role", "system", "content", prompt),
                 Map.of("role", "user", "content", entrada)),
-            "response_format", RESPONSE_FORMAT));
+            "response_format", RESPONSE_FORMAT,
+            "reasoning", REASONING));
 
         String resposta = http.post()
             .uri(url)
