@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ChangeEvent, ComponentProps, FormEvent, ReactNode } from 'react';
-import { Ban, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, ClipboardList, Download, Eye, EyeOff, FileText, Info, LogOut, Inbox, MapPin, Monitor, Moon, MoreHorizontal, Pencil, Plus, Search, Settings, Sun, Trash2, Upload, UserCheck, UsersRound, X } from 'lucide-react';
+import { Ban, Bell, Sparkles, BriefcaseBusiness, CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, ClipboardList, Download, Eye, EyeOff, FileText, Info, LogOut, Inbox, MapPin, Monitor, Moon, MoreHorizontal, Pencil, Plus, Search, Settings, Sun, Trash2, Upload, UserCheck, UsersRound, X } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -14,7 +14,7 @@ import { portalService } from '@/services/portal-service';
 import { ptBR } from 'react-day-picker/locale';
 import { ApiError, setAuthToken, setUnauthorizedHandler } from '@/lib/api-client';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import type { Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, NewJobInput, NotificationItem, ResumeEducation, ResumeExperience, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
+import type { AnaliseCandidatura, Application, ApplicationStatus, Candidate, CandidateDocument, CandidateProfile, DocumentBoard, DocumentStatus, DocumentType, Employee, EmployeeProfile, InterviewPresence, Job, NewJobInput, NotificationItem, ResumeEducation, ResumeExperience, Sexo, StaffUser, StaffUserInput } from '@/types/domain';
 import { authService } from './types/auth-service';
 import type { LoginResponse, StatusUsuario } from './types/auth';
 
@@ -1178,6 +1178,7 @@ function HrCandidatesPage({ job, jobs, documents, reloadKey, onSelectJob, onBack
   const [viewing, setViewing] = useState<Candidate | null>(null);
   const [scheduling, setScheduling] = useState<Candidate | null>(null);
   const [documentsOf, setDocumentsOf] = useState<Candidate | null>(null);
+  const [analysisOf, setAnalysisOf] = useState<Candidate | null>(null);
   // Tipos de documento exigidos: sem eles (ainda ou por falha) o Contratar fica desabilitado.
   const [types, setTypes] = useState<DocumentType[] | null>(null);
   useEffect(() => { portalService.getDocumentTypes().then(setTypes).catch(() => undefined); }, []);
@@ -1199,12 +1200,13 @@ function HrCandidatesPage({ job, jobs, documents, reloadKey, onSelectJob, onBack
     </div>
     <div className="lineup">
       {filtered.length > 0 && <table className="sheet-table plain">
-        <thead><tr><th>Candidato</th><th>Inscrição</th><th>Etapa</th><th><span className="sr-only">Ações</span></th></tr></thead>
+        <thead><tr><th>Candidato</th><th>Inscrição</th><th>Aderência</th><th>Etapa</th><th><span className="sr-only">Ações</span></th></tr></thead>
         <tbody>{filtered.map((candidate) => <tr key={candidate.applicationId}>
           <td className="lead-cell"><div className="person"><span className="initials">{initials(candidate.name)}</span><span><strong>{candidate.name}</strong><small>{candidate.email}</small></span></div></td>
           <td data-label="Inscrição" className="tabular">{formatDate(candidate.submittedAt)}</td>
+          <td data-label="Aderência">{adherenceLabel(candidate.analise)}</td>
           <td><Chip tone={appTone[candidate.status]}>{appStatus[candidate.status]}</Chip>{candidate.status === 'interview' && candidate.interviewAt && <small>Entrevista em {formatDateTime(candidate.interviewAt)}</small>}</td>
-          <td className="actions-cell"><CandidateMenu candidate={candidate} hireBlock={hireBlock(candidate, types, documents)} onUpdate={update} onReject={setRejecting} onHire={setHiring} onResume={setViewing} onSchedule={setScheduling} onDocuments={setDocumentsOf} /></td>
+          <td className="actions-cell"><CandidateMenu candidate={candidate} hireBlock={hireBlock(candidate, types, documents)} onUpdate={update} onReject={setRejecting} onHire={setHiring} onResume={setViewing} onSchedule={setScheduling} onDocuments={setDocumentsOf} onAnalysis={setAnalysisOf} /></td>
         </tr>)}</tbody>
       </table>}
       {candidates !== null && filtered.length === 0 && (candidates.length === 0
@@ -1215,15 +1217,17 @@ function HrCandidatesPage({ job, jobs, documents, reloadKey, onSelectJob, onBack
     </div>
     {viewing && <ResumeDialog candidate={viewing} onClose={() => setViewing(null)} />}
     {documentsOf && <CandidateDocumentsDialog candidate={documentsOf} reloadKey={reloadKey} onDownload={onDownload} onReview={onReview} onClose={() => setDocumentsOf(null)} />}
+    {analysisOf && <AnalysisDialog candidate={analysisOf} onClose={() => setAnalysisOf(null)} />}
     {scheduling && <InterviewDialog candidate={scheduling} onClose={() => setScheduling(null)} onSave={async (dateTime) => { const problem = await onSchedule(scheduling.applicationId, dateTime); if (!problem) void load(); return problem; }} />}
     {hiring && <ConfirmDialog title="Contratar candidato?" text={`${hiring.name} passa a constar em Funcionários e sai da lista de candidatos desta vaga.`} confirm="Contratar" busyLabel="Contratando…" destructive={false} onCancel={() => setHiring(null)} onConfirm={async () => { const hired = hiring; if (await onHire(hired.applicationId)) setCandidates((items) => items && items.filter((item) => item.applicationId !== hired.applicationId)); setHiring(null); }} />}
     {rejecting && <ConfirmDialog title="Não selecionar candidato?" text={`${rejecting.name} verá a candidatura como “Não selecionado” nesta vaga.`} confirm="Não selecionar" busyLabel="Salvando…" onCancel={() => setRejecting(null)} onConfirm={async () => { await update(rejecting.applicationId, 'rejected'); setRejecting(null); }} />}
   </section>;
 }
 
-function CandidateMenu({ candidate, hireBlock, onUpdate, onReject, onHire, onResume, onSchedule, onDocuments }: { candidate: Candidate; hireBlock: string | null; onUpdate: (id: string, status: ApplicationStatus) => void; onReject: (candidate: Candidate) => void; onHire: (candidate: Candidate) => void; onResume: (candidate: Candidate) => void; onSchedule: (candidate: Candidate) => void; onDocuments: (candidate: Candidate) => void }) {
+function CandidateMenu({ candidate, hireBlock, onUpdate, onReject, onHire, onResume, onSchedule, onDocuments, onAnalysis }: { candidate: Candidate; hireBlock: string | null; onUpdate: (id: string, status: ApplicationStatus) => void; onReject: (candidate: Candidate) => void; onHire: (candidate: Candidate) => void; onResume: (candidate: Candidate) => void; onSchedule: (candidate: Candidate) => void; onDocuments: (candidate: Candidate) => void; onAnalysis: (candidate: Candidate) => void }) {
   return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Ações para ${candidate.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-56">
     <DropdownMenuItem onClick={() => onResume(candidate)}><FileText />Ver currículo</DropdownMenuItem>
+    <DropdownMenuItem onClick={() => onAnalysis(candidate)}><Sparkles />Ver análise</DropdownMenuItem>
     <DropdownMenuItem onClick={() => onDocuments(candidate)}><Inbox />Ver documentos</DropdownMenuItem>
     <DropdownMenuSeparator />
     <DropdownMenuItem disabled={candidate.status === 'reviewing'} onClick={() => onUpdate(candidate.applicationId, 'reviewing')}><ClipboardList />Mover para análise</DropdownMenuItem>
@@ -1233,6 +1237,26 @@ function CandidateMenu({ candidate, hireBlock, onUpdate, onReject, onHire, onRes
     <DropdownMenuSeparator />
     <DropdownMenuItem disabled={candidate.status === 'rejected'} variant="destructive" onClick={() => onReject(candidate)}><Ban />Não selecionar candidato</DropdownMenuItem>
   </DropdownMenuContent></DropdownMenu>;
+}
+
+/** Aderência à vaga: alta (80+) verde, média (50 a 79) amarelo, baixa vermelho. O número sempre aparece; sem ele, o estado da análise. */
+function adherenceLabel(analysis: AnaliseCandidatura | null) {
+  if (analysis?.status === 'CONCLUIDA' && analysis.aderencia !== null) return <Chip tone={analysis.aderencia >= 80 ? 'green' : analysis.aderencia >= 50 ? 'yellow' : 'red'}>{analysis.aderencia}%</Chip>;
+  return <small>{analysis?.status === 'PENDENTE' ? 'Analisando' : 'Análise indisponível'}</small>;
+}
+
+/** Triagem do currículo por IA: só uma recomendação, quem decide é o RH. Sem tempo real: PENDENTE some ao recarregar a lista. */
+function AnalysisDialog({ candidate, onClose }: { candidate: Candidate; onClose: () => void }) {
+  const analysis = candidate.analise;
+  const sections = [{ title: 'Pontos positivos', tone: 'positive', items: analysis?.pontosPositivos ?? [] }, { title: 'Pontos negativos', tone: 'negative', items: analysis?.pontosNegativos ?? [] }];
+  return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog">
+    <DialogHeader><DialogTitle>Análise de {candidate.name}</DialogTitle><DialogDescription>A análise é só uma recomendação. Quem decide é o RH.</DialogDescription></DialogHeader>
+    {analysis?.status === 'CONCLUIDA' && analysis.aderencia !== null && <p className="analysis-score">Aderência à vaga: <strong>{analysis.aderencia}%</strong></p>}
+    {analysis?.status === 'CONCLUIDA'
+      ? sections.map((section) => <div key={section.title} className={`analysis-section ${section.tone}`}><h3>{section.title}</h3>{section.items.length > 0 ? <ul>{section.items.map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="muted">Nenhum ponto registrado.</p>}</div>)
+      : <p className="muted">{analysis?.status === 'PENDENTE' ? 'A análise ainda está sendo preparada. Ela aparece ao recarregar a lista de inscritos.' : 'Análise indisponível.'}</p>}
+    <DialogFooter><Button variant="outline" onClick={onClose}>Fechar</Button></DialogFooter>
+  </DialogContent></Dialog>;
 }
 
 /** Agora, no horário de Brasília, no formato de um input datetime-local (para o `min`). */

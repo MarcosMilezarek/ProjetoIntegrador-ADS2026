@@ -154,7 +154,7 @@ function reviewDocument(id: string, status: 'aprovado' | 'recusado') {
 }
 
 function candidateOf(app: Application): Candidate {
-  return { ...candidateIdentity, applicationId: app.id, jobTitle: app.jobTitle, submittedAt: app.submittedAt, status: app.status, interviewAt: app.interviewAt, presence: app.presence };
+  return { ...candidateIdentity, applicationId: app.id, jobTitle: app.jobTitle, submittedAt: app.submittedAt, status: app.status, interviewAt: app.interviewAt, presence: app.presence, analise: null };
 }
 
 export const mockPortalService: PortalService = {
