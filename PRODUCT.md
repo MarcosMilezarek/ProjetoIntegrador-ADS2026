@@ -33,7 +33,7 @@ Um único currículo reaproveitado em todas as candidaturas, acompanhamento de s
 - Não há sessão/JWT: o usuário logado é passado explicitamente em cada chamada; F5 volta ao login.
 - Recuperação de senha (RF03) não existe.
 - Documentos: PDF ou DOCX até 5 MB (RNF09).
-- Stack: React 19 + TypeScript + Vite, Tailwind 4, componentes shadcn/ui (Radix); todas as telas em `frontend/src/App.tsx`.
+- Stack: React 19 + TypeScript + Vite, Tailwind 4, componentes shadcn/ui (Radix); telas em `frontend/src/pages/`, orquestradas por `frontend/src/App.tsx`.
 
 ## Brand Commitments
 
