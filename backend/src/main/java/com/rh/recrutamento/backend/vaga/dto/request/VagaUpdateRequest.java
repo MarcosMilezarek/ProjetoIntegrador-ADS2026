@@ -17,7 +17,14 @@ public record VagaUpdateRequest(
     @NotBlank(message = "A descrição é obrigatória.")
     String descricao,
 
-    String requisitos,
+    /** Um requisito por linha. Indispensáveis para a função. */
+    String requisitosObrigatorios,
+
+    /** Um requisito por linha. Bom ter, aprendível na prática. */
+    String requisitosDesejaveis,
+
+    /** Um requisito por linha. Não é necessário, mas soma se existir. */
+    String requisitosDiferenciais,
 
     @Size(max = 150, message = "O local deve ter no máximo 150 caracteres.")
     String local,

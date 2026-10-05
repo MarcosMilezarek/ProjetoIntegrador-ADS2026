@@ -269,6 +269,23 @@ function App() {
       return { ok: false };
     }
   };
+  /** Salva a vaga; erros de validação (400 com `campos`) voltam para o formulário marcar cada campo. */
+  const saveJob = async (input: JobInput): Promise<{ ok: true } | { ok: false; campos?: Record<string, string> }> => {
+    if (!currentUser) return { ok: false };
+    try {
+      await portalService.saveJob(input);
+      await refresh(currentUser);
+      setNotice({ tone: 'ok', text: input.id ? 'Vaga atualizada.' : 'Vaga publicada.' });
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof ApiError && error.campos) {
+        setNotice({ tone: 'error', text: 'Revise os campos destacados na vaga.' });
+        return { ok: false, campos: error.campos };
+      }
+      setNotice({ tone: 'error', text: messageOf(error, 'Não conseguimos salvar a vaga agora. O que você preencheu continua na tela: tente salvar de novo em instantes.') });
+      return { ok: false };
+    }
+  };
   const uploadResume = async (file: File) => {
     if (!profile?.id) return 'Salve o currículo antes de anexar o PDF.';
     try {
@@ -333,7 +350,7 @@ function App() {
       {candidateView === 'documents' && <DocumentsPage applications={applications} reloadKey={liveVersion} onBack={() => navigateCandidate('applications')} onUpload={uploadDocument} onDownload={downloadDocument} />}
     </CandidateLayout>}
     {mode === 'hr' && <HrLayout userName={currentUser.nome} role={currentUser.perfil} active={hrView} onNavigate={navigateHr} onExit={exit} notifications={notifications} onReadNotifications={markRead} onReadNotification={markOneRead}>
-      {hrView === 'jobs' && <HrJobsPage jobs={jobs} onCandidates={(id) => { setSelectedJobId(id); navigateHr('candidates'); }} onSaved={(input) => act(() => portalService.saveJob(input), input.id ? 'Vaga atualizada.' : 'Vaga publicada.')} onClosed={(id) => act(() => portalService.closeJob(id), 'Vaga encerrada.')} />}
+      {hrView === 'jobs' && <HrJobsPage jobs={jobs} onCandidates={(id) => { setSelectedJobId(id); navigateHr('candidates'); }} onSaved={saveJob} onClosed={(id) => act(() => portalService.closeJob(id), 'Vaga encerrada.')} />}
       {hrView === 'candidates' && (selectedJob
         ? <HrCandidatesPage job={selectedJob} jobs={jobs} documents={documents} reloadKey={liveVersion} onSelectJob={setSelectedJobId} onBack={() => navigateHr('jobs')} onUpdate={(id, status) => act(() => portalService.updateApplicationStatus(id, status), 'Etapa do candidato atualizada.')} onSchedule={scheduleInterview} onDownload={downloadDocument} onReview={reviewDocument} onHire={hire} />
         : <section className="hr-page"><Empty title="Nenhuma vaga cadastrada" text="Crie uma vaga para começar a receber candidatos." action={<Button onClick={() => navigateHr('jobs')}>Ir para vagas</Button>} /></section>)}
@@ -554,7 +571,7 @@ function JobDetail({ job, profile, userName, applied, onBack, onApply, onEditRes
         <header className="detail-head"><h1 className="display">{job.title}</h1><JobMeta job={job} withDate /></header>
         <div className="prose">
           <h2>Sobre a vaga</h2><p>{job.description}</p>
-          {job.requirements.length > 0 && <><h2>Requisitos</h2><ol>{job.requirements.map((item) => <li key={item}>{item}</li>)}</ol></>}
+          {requirementGroups(job).length > 0 && <><h2>Requisitos</h2>{requirementGroups(job).map(([title, items]) => <section key={title}><h3>{title}</h3><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</>}
         </div>
       </article>
       <aside className="apply-panel" aria-label="Sua candidatura">
@@ -1071,7 +1088,7 @@ function HrLayout({ active, children, onNavigate, onExit, userName, role, notifi
   </div>;
 }
 
-function HrJobsPage({ jobs, onCandidates, onSaved, onClosed }: { jobs: Job[]; onCandidates: (id: string) => void; onSaved: (input: JobInput) => Promise<boolean>; onClosed: (id: string) => Promise<boolean> }) {
+function HrJobsPage({ jobs, onCandidates, onSaved, onClosed }: { jobs: Job[]; onCandidates: (id: string) => void; onSaved: (input: JobInput) => Promise<{ ok: true } | { ok: false; campos?: Record<string, string> }>; onClosed: (id: string) => Promise<boolean> }) {
   const [tab, setTab] = useState<Job['status'] | 'all'>('aberta'); const [query, setQuery] = useState('');
   const [editor, setEditor] = useState<Job | null | undefined>(undefined);
   const [closing, setClosing] = useState<Job | null>(null);
@@ -1117,15 +1134,16 @@ function ConfirmDialog({ title, text, confirm, busyLabel, destructive = true, on
   </DialogContent></Dialog>;
 }
 
-function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; onSave: (input: JobInput) => Promise<boolean> }) {
-  const [form, setForm] = useState({ title: job?.title ?? '', city: job?.city ?? 'Erechim, RS', workModel: job?.workModel ?? 'Híbrido', contract: job?.contract ?? 'CLT', closesAt: job?.closesAt ?? '', description: job?.description ?? '', requirements: job?.requirements.join('\n') ?? '' });
+function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; onSave: (input: JobInput) => Promise<{ ok: true } | { ok: false; campos?: Record<string, string> }> }) {
+  const [form, setForm] = useState({ title: job?.title ?? '', city: job?.city ?? 'Erechim, RS', workModel: job?.workModel ?? 'Híbrido', contract: job?.contract ?? 'CLT', closesAt: job?.closesAt ?? '', description: job?.description ?? '', required: job?.requirements.required.join('\n') ?? '', desirable: job?.requirements.desirable.join('\n') ?? '', differential: job?.requirements.differential.join('\n') ?? '' });
   const [saving, setSaving] = useState(false);
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true);
-    const ok = await onSave({ id: job?.id, status: job?.status, title: form.title, city: form.city, workModel: form.workModel as Job['workModel'], contract: form.contract as Job['contract'], closesAt: form.closesAt || undefined, description: form.description, requirements: lineList(form.requirements) });
+    const result = await onSave({ id: job?.id, status: job?.status, title: form.title, city: form.city, workModel: form.workModel as Job['workModel'], contract: form.contract as Job['contract'], closesAt: form.closesAt || undefined, description: form.description, requirements: { required: lineList(form.required), desirable: lineList(form.desirable), differential: lineList(form.differential) } });
     setSaving(false);
-    if (ok) onClose();
+    if (result.ok) onClose(); else setCampos(result.campos ?? {});
   };
   return <Dialog open onOpenChange={(open) => !open && onClose()}><DialogContent className="job-dialog">
     <DialogHeader><DialogTitle>{job ? 'Editar vaga' : 'Nova vaga'}</DialogTitle><DialogDescription>{job ? 'As alterações aparecem no portal assim que você salvar.' : 'A vaga é publicada como aberta assim que você salvar.'}</DialogDescription></DialogHeader>
@@ -1138,7 +1156,10 @@ function JobDialog({ job, onClose, onSave }: { job?: Job; onClose: () => void; o
         <Field label="Contrato"><Select value={form.contract} onValueChange={(value) => update('contract', value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CLT">CLT</SelectItem><SelectItem value="Estágio">Estágio</SelectItem><SelectItem value="PJ">PJ</SelectItem><SelectItem value="Temporário">Temporário</SelectItem></SelectContent></Select></Field>
       </div>
       <Field label="Descrição"><Textarea required value={form.description} onChange={(event) => update('description', event.target.value)} /></Field>
-      <Field label="Requisitos" hint="Um por linha"><Textarea required value={form.requirements} onChange={(event) => update('requirements', event.target.value)} /></Field>
+      <div className="note"><strong>A classificação dos requisitos importa.</strong>Ela influencia a triagem por IA, e os requisitos obrigatórios pesam mais.</div>
+      <Field label="Requisitos obrigatórios" hint="Um requisito por linha" error={campos.requisitosObrigatorios}><Textarea value={form.required} onChange={(event) => update('required', event.target.value)} aria-describedby="req-obrigatorios" /><small id="req-obrigatorios">Indispensável para a função, como experiência, formação e competências exigidas.</small></Field>
+      <Field label="Requisitos desejáveis" hint="Um requisito por linha" error={campos.requisitosDesejaveis}><Textarea value={form.desirable} onChange={(event) => update('desirable', event.target.value)} aria-describedby="req-desejaveis" /><small id="req-desejaveis">Bom ter, dá para aprender na prática.</small></Field>
+      <Field label="Requisitos diferenciais" hint="Um requisito por linha" error={campos.requisitosDiferenciais}><Textarea value={form.differential} onChange={(event) => update('differential', event.target.value)} aria-describedby="req-diferenciais" /><small id="req-diferenciais">Não é necessário, mas soma se o candidato tiver.</small></Field>
       <DialogFooter><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Salvando…' : job ? 'Salvar alterações' : 'Publicar vaga'}</Button></DialogFooter>
     </form>
   </DialogContent></Dialog>;
@@ -1617,6 +1638,11 @@ function saveBlob(blob: Blob, filename: string) {
 function initials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map((item) => item[0]).join('').toUpperCase(); }
 function firstName(name: string) { return name.split(' ')[0]; }
 function lineList(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+/** Grupos de requisitos que têm itens, na ordem de peso. */
+function requirementGroups({ requirements }: Job): [string, string[]][] {
+  const groups: [string, string[]][] = [['Obrigatórios', requirements.required], ['Desejáveis', requirements.desirable], ['Diferenciais', requirements.differential]];
+  return groups.filter(([, items]) => items.length > 0);
+}
 function messageOf(error: unknown, fallback: string) { return error instanceof Error && error.message ? error.message : fallback; }
 
 export default App;

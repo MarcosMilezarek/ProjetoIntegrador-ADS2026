@@ -192,7 +192,7 @@ class DocumentoServiceTest {
 
     /** Candidatura da Ana (id 1) na vaga da Rita (id 7). */
     private Candidatura candidaturaDaAna(Candidatura.Status status) {
-        Vaga vaga = new Vaga(usuario(7L, Usuario.Perfil.rh), "Backend Java", "Descricao", null, null,
+        Vaga vaga = new Vaga(usuario(7L, Usuario.Perfil.rh), "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null);
         ReflectionTestUtils.setField(vaga, "id", 10L);
         Candidatura candidatura = new Candidatura(usuario(1L, Usuario.Perfil.candidato), vaga);

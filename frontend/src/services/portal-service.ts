@@ -23,11 +23,11 @@ import { emptyProfile, restPortalService } from '@/services/rest-portal-service'
 const today = '21/08/2026';
 
 const seedJobs: Job[] = [
-  { id: 'job-java', title: 'Desenvolvedor(a) Back-end Java', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'CLT', publishedAt: '02/08/2026', closesAt: '2026-09-02', status: 'aberta', description: 'Atue na squad responsável pelo Sistema de Gerenciamento de Vagas, construindo APIs REST, integrações e modelos de dados para os produtos internos do RH.', requirements: ['Experiência com Java e Spring Boot.', 'Conhecimento em banco de dados relacional.', 'Vivência com Git e metodologias ágeis.', 'Desejável conhecimento em JWT e APIs RESTful.'] },
-  { id: 'job-react', title: 'Desenvolvedora Front-end React', city: 'Remoto', workModel: 'Remoto', contract: 'CLT', publishedAt: '04/08/2026', closesAt: '2026-09-12', status: 'aberta', description: 'Construa experiências acessíveis e consistentes para produtos de gestão de pessoas.', requirements: ['React e TypeScript.', 'Consumo de APIs REST.', 'Conhecimento de design systems.'] },
-  { id: 'job-data', title: 'Analista de Dados Jr.', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'Estágio', publishedAt: '28/07/2026', closesAt: '2026-08-26', status: 'aberta', description: 'Apoie a organização de dados e a criação de indicadores para as áreas de negócio.', requirements: ['SQL básico.', 'Interesse em visualização de dados.', 'Organização e comunicação.'] },
-  { id: 'job-hr', title: 'Analista de Recursos Humanos', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '24/07/2026', closesAt: '2026-08-23', status: 'aberta', description: 'Conduza processos seletivos e apoie as rotinas de pessoas.', requirements: ['Experiência com recrutamento.', 'Boa comunicação.', 'Organização de processos.'] },
-  { id: 'job-support', title: 'Analista de Suporte Técnico', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '30/06/2026', closesAt: '2026-07-30', status: 'encerrada', description: 'Atenda usuários internos e mantenha o ambiente tecnológico operacional.', requirements: ['Conhecimento básico de redes.', 'Experiência com atendimento.'] },
+  { id: 'job-java', title: 'Desenvolvedor(a) Back-end Java', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'CLT', publishedAt: '02/08/2026', closesAt: '2026-09-02', status: 'aberta', description: 'Atue na squad responsável pelo Sistema de Gerenciamento de Vagas, construindo APIs REST, integrações e modelos de dados para os produtos internos do RH.', requirements: { required: ['Experiência com Java e Spring Boot.', 'Conhecimento em banco de dados relacional.'], desirable: ['Vivência com Git e metodologias ágeis.'], differential: ['Conhecimento em JWT e APIs RESTful.'] } },
+  { id: 'job-react', title: 'Desenvolvedora Front-end React', city: 'Remoto', workModel: 'Remoto', contract: 'CLT', publishedAt: '04/08/2026', closesAt: '2026-09-12', status: 'aberta', description: 'Construa experiências acessíveis e consistentes para produtos de gestão de pessoas.', requirements: { required: ['React e TypeScript.', 'Consumo de APIs REST.'], desirable: [], differential: ['Conhecimento de design systems.'] } },
+  { id: 'job-data', title: 'Analista de Dados Jr.', city: 'Erechim, RS', workModel: 'Híbrido', contract: 'Estágio', publishedAt: '28/07/2026', closesAt: '2026-08-26', status: 'aberta', description: 'Apoie a organização de dados e a criação de indicadores para as áreas de negócio.', requirements: { required: ['SQL básico.'], desirable: ['Interesse em visualização de dados.'], differential: [] } },
+  { id: 'job-hr', title: 'Analista de Recursos Humanos', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '24/07/2026', closesAt: '2026-08-23', status: 'aberta', description: 'Conduza processos seletivos e apoie as rotinas de pessoas.', requirements: { required: ['Experiência com recrutamento.'], desirable: ['Boa comunicação.', 'Organização de processos.'], differential: [] } },
+  { id: 'job-support', title: 'Analista de Suporte Técnico', city: 'Erechim, RS', workModel: 'Presencial', contract: 'CLT', publishedAt: '30/06/2026', closesAt: '2026-07-30', status: 'encerrada', description: 'Atenda usuários internos e mantenha o ambiente tecnológico operacional.', requirements: { required: ['Conhecimento básico de redes.', 'Experiência com atendimento.'], desirable: [], differential: [] } },
 ];
 
 const seedProfile: CandidateProfile = {
@@ -90,7 +90,7 @@ const seedNotifications: NotificationItem[] = [
 
 type Store = { jobs: Job[]; profile: CandidateProfile; applications: Application[]; documents: CandidateDocument[]; notifications: NotificationItem[]; users: StaffUser[]; employees: Employee[] };
 // v4: documentos com status, notificações com tipo e lista de funcionários.
-const storeKey = 'vagas-plus-mock-db-v4';
+const storeKey = 'vagas-plus-mock-db-v5';
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function getStore(): Store {

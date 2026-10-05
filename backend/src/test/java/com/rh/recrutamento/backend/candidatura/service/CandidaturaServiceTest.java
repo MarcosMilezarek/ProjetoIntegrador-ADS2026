@@ -241,7 +241,7 @@ class CandidaturaServiceTest {
 
     /** Vaga da Rita (id 7). */
     private Vaga vaga(Long id, Vaga.Status status) {
-        Vaga vaga = new Vaga(usuario(7L, Usuario.Perfil.rh), "Backend Java", "Descricao", null, null,
+        Vaga vaga = new Vaga(usuario(7L, Usuario.Perfil.rh), "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, status, null);
         ReflectionTestUtils.setField(vaga, "id", id);
         return vaga;

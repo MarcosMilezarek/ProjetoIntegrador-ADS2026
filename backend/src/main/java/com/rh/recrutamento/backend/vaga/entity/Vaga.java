@@ -28,8 +28,14 @@ public class Vaga {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String descricao;
 
-    @Column(columnDefinition = "TEXT")
-    private String requisitos;
+    @Column(name = "requisitos_obrigatorios", columnDefinition = "TEXT")
+    private String requisitosObrigatorios;
+
+    @Column(name = "requisitos_desejaveis", columnDefinition = "TEXT")
+    private String requisitosDesejaveis;
+
+    @Column(name = "requisitos_diferenciais", columnDefinition = "TEXT")
+    private String requisitosDiferenciais;
 
     @Column(length = 150)
     private String local;
@@ -60,12 +66,15 @@ public class Vaga {
         // exigido pelo JPA
     }
 
-    public Vaga(Usuario rh, String titulo, String descricao, String requisitos, String local,
+    public Vaga(Usuario rh, String titulo, String descricao, String requisitosObrigatorios,
+                String requisitosDesejaveis, String requisitosDiferenciais, String local,
                 Modalidade modalidade, TipoContrato tipoContrato, Status status, LocalDate prazo) {
         this.rh = rh;
         this.titulo = titulo;
         this.descricao = descricao;
-        this.requisitos = requisitos;
+        this.requisitosObrigatorios = requisitosObrigatorios;
+        this.requisitosDesejaveis = requisitosDesejaveis;
+        this.requisitosDiferenciais = requisitosDiferenciais;
         this.local = local;
         this.modalidade = modalidade;
         this.tipoContrato = tipoContrato;
@@ -74,11 +83,14 @@ public class Vaga {
     }
 
     /** Atualiza os dados da vaga, inclusive o status (usado também para encerrar). */
-    public void atualizarDados(String titulo, String descricao, String requisitos, String local,
+    public void atualizarDados(String titulo, String descricao, String requisitosObrigatorios,
+                                String requisitosDesejaveis, String requisitosDiferenciais, String local,
                                 Modalidade modalidade, TipoContrato tipoContrato, Status status, LocalDate prazo) {
         this.titulo = titulo;
         this.descricao = descricao;
-        this.requisitos = requisitos;
+        this.requisitosObrigatorios = requisitosObrigatorios;
+        this.requisitosDesejaveis = requisitosDesejaveis;
+        this.requisitosDiferenciais = requisitosDiferenciais;
         this.local = local;
         this.modalidade = modalidade;
         this.tipoContrato = tipoContrato;

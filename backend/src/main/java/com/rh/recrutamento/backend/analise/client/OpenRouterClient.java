@@ -38,9 +38,9 @@ public class OpenRouterClient {
                 "type", "object",
                 "properties", Map.of(
                     "aderencia", Map.of("type", "integer", "description", "Porcentagem de 0 a 100"),
-                    "pontosPositivos", Map.of("type", "array", "items", Map.of("type", "string")),
-                    "pontosNegativos", Map.of("type", "array", "items", Map.of("type", "string"))),
-                "required", List.of("aderencia", "pontosPositivos", "pontosNegativos"),
+                    "pontos_positivos", Map.of("type", "array", "items", Map.of("type", "string")),
+                    "pontos_negativos", Map.of("type", "array", "items", Map.of("type", "string"))),
+                "required", List.of("aderencia", "pontos_positivos", "pontos_negativos"),
                 "additionalProperties", false)));
 
     private final RestClient http;

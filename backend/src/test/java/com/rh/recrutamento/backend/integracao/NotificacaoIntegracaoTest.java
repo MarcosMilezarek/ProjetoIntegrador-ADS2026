@@ -76,7 +76,7 @@ class NotificacaoIntegracaoTest {
         Usuario ana = usuario("ana@notificacao.test", Usuario.Perfil.candidato);
         Usuario bruno = usuario("bruno@notificacao.test", Usuario.Perfil.candidato);
         curriculoRepository.save(new Curriculo(ana));
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Backend Java", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
 
         // conexoes abertas antes das acoes
@@ -161,7 +161,7 @@ class NotificacaoIntegracaoTest {
         Usuario rita = usuario("rita@dobro.test", Usuario.Perfil.rh);
         Usuario ana = usuario("ana@dobro.test", Usuario.Perfil.candidato);
         curriculoRepository.save(new Curriculo(ana));
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Financeiro", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Financeiro", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
         MvcResult streamRita = conectar(rita);
 
@@ -179,7 +179,7 @@ class NotificacaoIntegracaoTest {
         Usuario rita = usuario("rita@entrevista.test", Usuario.Perfil.rh);
         Usuario paulo = usuario("paulo@entrevista.test", Usuario.Perfil.rh);
         Usuario ana = usuario("ana@entrevista.test", Usuario.Perfil.candidato);
-        Vaga vaga = vagaRepository.save(new Vaga(rita, "Dados", "Descricao", null, null,
+        Vaga vaga = vagaRepository.save(new Vaga(rita, "Dados", "Descricao", null, null, null, null,
             Vaga.Modalidade.remoto, Vaga.TipoContrato.clt, Vaga.Status.aberta, null));
         Candidatura candidatura = candidaturaRepository.save(new Candidatura(ana, vaga));
         String rota = "/candidaturas/" + candidatura.getId() + "/entrevista";

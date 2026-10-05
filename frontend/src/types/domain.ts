@@ -14,8 +14,11 @@ export type Job = {
   closesAt?: string;
   status: JobStatus;
   description: string;
-  requirements: string[];
+  requirements: JobRequirements;
 };
+
+/** Requisitos da vaga em três níveis, um item por linha. */
+export type JobRequirements = { required: string[]; desirable: string[]; differential: string[] };
 
 export type Sexo = 'feminino' | 'masculino' | 'outro' | 'nao_informado';
 

@@ -9,7 +9,9 @@ interface VagaResponseDTO {
   rhId: number;
   titulo: string;
   descricao: string;
-  requisitos: string | null;
+  requisitosObrigatorios: string | null;
+  requisitosDesejaveis: string | null;
+  requisitosDiferenciais: string | null;
   local: string | null;
   modalidade: string;
   tipoContrato: string;
@@ -151,8 +153,16 @@ function jobFromResponse(vaga: VagaResponseDTO): Job {
     closesAt: vaga.prazo ?? undefined,
     status: vaga.status as JobStatus,
     description: vaga.descricao,
-    requirements: vaga.requisitos ? vaga.requisitos.split('\n').map((item) => item.trim()).filter(Boolean) : [],
+    requirements: {
+      required: linesOf(vaga.requisitosObrigatorios),
+      desirable: linesOf(vaga.requisitosDesejaveis),
+      differential: linesOf(vaga.requisitosDiferenciais),
+    },
   };
+}
+
+function linesOf(texto: string | null) {
+  return texto ? texto.split('\n').map((item) => item.trim()).filter(Boolean) : [];
 }
 
 const statusFromApi: Record<string, ApplicationStatus> = { inscrito: 'applied', em_triagem: 'reviewing', entrevista: 'interview', aprovado: 'approved', reprovado: 'rejected', contratado: 'hired', cancelado: 'cancelled' };
@@ -275,7 +285,9 @@ function vagaBody(input: NewJobInput & { status: JobStatus }) {
   return {
     titulo: input.title,
     descricao: input.description,
-    requisitos: input.requirements.join('\n'),
+    requisitosObrigatorios: input.requirements.required.join('\n'),
+    requisitosDesejaveis: input.requirements.desirable.join('\n'),
+    requisitosDiferenciais: input.requirements.differential.join('\n'),
     local: input.city,
     modalidade: modalidadeToApi[input.workModel],
     tipoContrato: tipoContratoToApi[input.contract],
@@ -375,7 +387,9 @@ export const restPortalService = {
       body: JSON.stringify({
         titulo: current.titulo,
         descricao: current.descricao,
-        requisitos: current.requisitos,
+        requisitosObrigatorios: current.requisitosObrigatorios,
+        requisitosDesejaveis: current.requisitosDesejaveis,
+        requisitosDiferenciais: current.requisitosDiferenciais,
         local: current.local,
         modalidade: current.modalidade,
         tipoContrato: current.tipoContrato,
