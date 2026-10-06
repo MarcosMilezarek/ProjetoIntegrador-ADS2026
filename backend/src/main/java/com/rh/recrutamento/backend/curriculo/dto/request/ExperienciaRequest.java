@@ -3,6 +3,7 @@ package com.rh.recrutamento.backend.curriculo.dto.request;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
@@ -10,9 +11,11 @@ import java.time.LocalDate;
 public record ExperienciaRequest(
 
     @NotBlank(message = "O cargo e obrigatorio.")
+    @Size(max = 150, message = "O cargo deve ter no maximo 150 caracteres.")
     String cargo,
 
     @NotBlank(message = "A empresa e obrigatoria.")
+    @Size(max = 150, message = "A empresa deve ter no maximo 150 caracteres.")
     String empresa,
 
     @NotNull(message = "A data de contratacao e obrigatoria.")
