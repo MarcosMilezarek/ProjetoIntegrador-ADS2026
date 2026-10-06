@@ -124,6 +124,24 @@ class CurriculoControllerTest {
     }
 
     @Test
+    void postComTextoMaiorQueAColunaDeveRetornar400() throws Exception {
+        // as colunas de curso, instituicao, cargo e empresa tem 150 caracteres: acima disso o banco recusaria
+        String longo = "x".repeat(151);
+        String corpo = """
+            {"formacoes":[{"curso":"%s","instituicao":"%s","dataInicio":"2020-01-10"}],
+             "experiencias":[{"cargo":"%s","empresa":"%s","dataContratacao":"2024-01-10","trabalhoAtual":true}]}
+            """.formatted(longo, longo, longo, longo);
+
+        mockMvc.perform(post("/curriculos").with(comoCandidato(1)).contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos['formacoes[0].curso']").exists())
+            .andExpect(jsonPath("$.campos['formacoes[0].instituicao']").exists())
+            .andExpect(jsonPath("$.campos['experiencias[0].cargo']").exists())
+            .andExpect(jsonPath("$.campos['experiencias[0].empresa']").exists());
+        verifyNoInteractions(curriculoService);
+    }
+
+    @Test
     void postComUfInvalidaDeveRetornar400() throws Exception {
         String corpo = """
             {"uf":"SAO"}
