@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -142,6 +144,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErroResponse> tratarRotaInexistente(NoResourceFoundException ex) {
         return construir(HttpStatus.NOT_FOUND, "Recurso nao encontrado.");
+    }
+
+    /** Verbo que a rota nao aceita (ex.: PATCH /vagas/1): 405, nao 500. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErroResponse> tratarMetodoNaoSuportado(HttpRequestMethodNotSupportedException ex) {
+        return construir(HttpStatus.METHOD_NOT_ALLOWED, "Esta operação não está disponível para este endereço.");
+    }
+
+    /** Corpo enviado em formato que a rota nao le (ex.: text/plain em rota JSON): 415, nao 500. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErroResponse> tratarTipoNaoSuportado(HttpMediaTypeNotSupportedException ex) {
+        return construir(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "O formato dos dados enviados não é aceito por esta operação.");
     }
 
     /** O cliente fechou a conexao (ex.: aba com o stream de notificacoes fechada): nao ha a quem responder. */
