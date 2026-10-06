@@ -81,6 +81,45 @@ class UsuarioControllerTest {
     }
 
     @Test
+    void postComSenhaAcimaDoLimiteDoBcryptDeveRetornar400() throws Exception {
+        // 72 bytes e o maximo do BCrypt: "ç" ocupa 2 bytes, entao 37 deles passam do limite
+        for (String senha : List.of("a".repeat(73), "ç".repeat(37))) {
+            String corpo = """
+                {"nome":"Marina","email":"marina@email.com","senha":"%s","perfil":"candidato"}
+                """.formatted(senha);
+
+            mockMvc.perform(post("/usuarios").contentType(MediaType.APPLICATION_JSON).content(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos.senha").exists());
+        }
+        verifyNoInteractions(usuarioService);
+    }
+
+    @Test
+    void postComSenhaNoLimiteDoBcryptDeveRetornar201() throws Exception {
+        when(usuarioService.criar(any(UsuarioRequest.class), isNull())).thenReturn(marina);
+        String corpo = """
+            {"nome":"Marina","email":"marina@email.com","senha":"%s","perfil":"candidato"}
+            """.formatted("a".repeat(72));
+
+        mockMvc.perform(post("/usuarios").contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isCreated());
+    }
+
+    @Test
+    void putComSenhaAcimaDoLimiteDoBcryptDeveRetornar400() throws Exception {
+        String corpo = """
+            {"nome":"Marina","email":"marina@email.com","perfil":"candidato","status":"ativo","senha":"%s"}
+            """.formatted("a".repeat(73));
+
+        mockMvc.perform(put("/usuarios/1").with(comoAdministrador(9L))
+                .contentType(MediaType.APPLICATION_JSON).content(corpo))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.campos.senha").exists());
+        verifyNoInteractions(usuarioService);
+    }
+
+    @Test
     void postComPerfilForaDoDominioDeveRetornar400() throws Exception {
         String corpo = """
             {"nome":"Marina","email":"marina@email.com","senha":"senha123","perfil":"diretor"}
