@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Testes do backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Os testes usam H2 em memoria e as propriedades de src/test/resources/application.properties
+    # (inclusive o segredo JWT de teste); por isso o job nao precisa de MySQL nem de variaveis de ambiente.
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v7
+
+      - name: Instalar o JDK 21 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Dar permissao de execucao ao Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Rodar os testes
+        run: ./mvnw -B test

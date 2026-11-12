@@ -1,5 +1,7 @@
 # ProjetoIntegrador-ADS2026
 
+[![Backend CI](https://github.com/MarcosMilezarek/ProjetoIntegrador-ADS2026/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/MarcosMilezarek/ProjetoIntegrador-ADS2026/actions/workflows/backend-ci.yml)
+
 ## Sobre
 
 Projeto Integrador — Seleção e Recrutamento (RH)
