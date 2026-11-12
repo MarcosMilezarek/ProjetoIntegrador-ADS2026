@@ -83,6 +83,8 @@ public class SegurancaConfig {
             .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(rotas -> rotas
                 .requestMatchers("/error").permitAll()
+                // documentacao da API (Swagger UI e OpenAPI); com SPRINGDOC_ENABLED=false as rotas nao existem e respondem 404
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 // login e cadastro publico (o service so aceita perfil candidato sem token de administrador)
                 .requestMatchers(HttpMethod.POST, "/auth/login", "/usuarios").permitAll()
 
