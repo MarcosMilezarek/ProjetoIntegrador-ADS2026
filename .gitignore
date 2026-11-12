@@ -1,6 +1,7 @@
-/context.md
-# Config de MCP com token do Obsidian (nunca versionar)
-/.mcp.json
-# Arquivos enviados em teste (dados pessoais, LGPD) e credencial de conexao da IDE
+# Arquivos enviados em teste (dados pessoais, LGPD)
 /backend/uploads/
-/.idea/dataSources.xml
+# Configuracao local de IDE e editor (inclui a credencial de conexao da IDE em .idea/dataSources.xml)
+/.idea/
+/.vscode/
+# Certificado publico de CA guardado localmente, sem uso no codigo
+/DigiCertTLSECCP384RootG5.crt.pem
